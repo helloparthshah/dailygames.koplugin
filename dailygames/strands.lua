@@ -37,7 +37,7 @@ function Board:setup()
     self.ox = math.floor((self.width - self.cell * self.cols) / 2)
     self.oy = math.floor((self.height - self.cell * self.rows) / 2)
     self.r = math.floor(self.cell * 0.4)
-    self.face = UI.fitFace({ "W", "M" }, self.r * 1.3, self.r * 1.1, { bold = true })
+    self.face = UI.fitFace({ "W", "M" }, self.r * 1.3, self.r * 0.9, { bold = true, caps = true })
 end
 
 function Board:center(r, c)

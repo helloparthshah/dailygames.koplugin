@@ -13,6 +13,10 @@ e = W.evaluate("EERIE", "THREE"); print("EERIE/THREE", table.concat(e,","))
 ROUTES[N.."/wordle/v2/"..d..".json"] = function() return {solution="crane", days_since_launch=1600}, 200 end
 plug:onDailyGamesWordle()
 local app = top(); assert(app._name=="wordle_app", app._name)
+-- opening a game must ask the e-ink panel for a full refresh (not just repaint memory)
+local refreshed = false
+for _, d in ipairs(DIRTY) do if d.w == app and d.type == "full" then refreshed = true end end
+assert(refreshed, "game requested a full refresh when shown")
 for _,k in ipairs{"S","L","A","T","E","ENTER"} do app:onKey(k) end
 assert(#app.state.guesses==1)
 local ks = app:keyStates(); assert(ks.A=="correct" and ks.S=="absent" and ks.E=="correct", "key states")

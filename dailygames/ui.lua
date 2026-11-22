@@ -114,7 +114,10 @@ function UI.fitFace(samples, w, h, opts)
         local f = face(size)
         local ok = true
         for _, s in ipairs(samples) do
-            local tw, th = measure(f, s, bold)
+            local tw, th, m = measure(f, s, bold)
+            -- caps: single capital letters only need cap height, not the full
+            -- line height (which leaves room for accents and descenders)
+            if opts.caps then th = m.y_top * 0.75 end
             if tw > w or th > h then ok = false; break end
         end
         if ok then return f end
@@ -312,7 +315,7 @@ function Keyboard:setup()
             x = x + w + self.gap
         end
     end
-    self.face = UI.fitFace({ "W", "M", "Q" }, unit * 0.8, self.row_h * 0.5, { bold = true })
+    self.face = UI.fitFace({ "W", "M", "Q" }, unit * 0.7, self.row_h * 0.42, { bold = true, caps = true })
     local long = {}
     for _, k in ipairs(self.keys) do
         if #k.label > 1 then table.insert(long, k) end
@@ -464,6 +467,14 @@ function FullscreenApp:paintTo(bb, x, y)
     self.dimen.x, self.dimen.y = x, y
     bb:paintRect(x, y, self.dimen.w, self.dimen.h, UI.WHITE)
     if self[1] then self[1]:paintTo(bb, x, y) end
+end
+
+--- UIManager:show() only repaints into memory; ask the e-ink panel to refresh,
+-- with a full flash so nothing of the previous screen (e.g. the ZenOS
+-- launcher) is left behind.
+function FullscreenApp:onShow()
+    UIManager:setDirty(self, function() return "full", self.dimen end)
+    return true
 end
 
 function FullscreenApp:refresh()
