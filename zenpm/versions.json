@@ -1,0 +1,43 @@
+{
+  "releases": [
+    {
+      "tag_name": "v1.2.0",
+      "name": "v1.2.0",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "dailygames.koplugin.zip",
+          "url": "https://github.com/helloparthshah/dailygames.koplugin/releases/download/v1.2.0/dailygames.koplugin.zip",
+          "size": "29288",
+          "digest": "sha256:0d3d8bad9896682bdf110bd48495574c1924c2063cd3e6697b7defd17fb19a69"
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.1.0",
+      "name": "v1.1.0",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "dailygames.koplugin.zip",
+          "url": "https://github.com/helloparthshah/dailygames.koplugin/releases/download/v1.1.0/dailygames.koplugin.zip",
+          "size": "29124",
+          "digest": "sha256:bf54889b96614d3bccc01a4a0d44aa1fb67568b9ebcc806d6a2856ac5616e561"
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.0",
+      "name": "v1.0.0",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "dailygames.koplugin.zip",
+          "url": "https://github.com/helloparthshah/dailygames.koplugin/releases/download/v1.0.0/dailygames.koplugin.zip",
+          "size": "27482",
+          "digest": "sha256:2b4de819eaf5bd5e423d49878061d3d574ce2b0f048913bcd16ec1890364fa3f"
+        }
+      ]
+    }
+  ]
+}
