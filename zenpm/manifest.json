@@ -9,7 +9,7 @@
     {
       "id": "dailygames",
       "name": "Daily Games",
-      "version": "1.6.4",
+      "version": "1.7.0",
       "description": "Daily puzzle games: NYT Wordle, Connections, Strands, Mini and Daily Crossword, plus Krillion trivia. Adds itself to the ZenOS App Launcher.",
       "author": "helloparthshah",
       "category": "games",
@@ -17,11 +17,11 @@
         "koreader"
       ],
       "dependencies": [],
-      "size": "93501",
+      "size": 96187,
       "source": "https://github.com/helloparthshah/dailygames.koplugin",
       "source_asset": "dailygames.koplugin.zip",
       "source_type": "release",
-      "published_at": "2026-11-22T07:59:08Z",
+      "published_at": "2026-11-22T17:18:38Z",
       "readme_url": "https://raw.githubusercontent.com/helloparthshah/dailygames.koplugin/main/README.md",
       "versions_url": "https://raw.githubusercontent.com/helloparthshah/dailygames.koplugin/main/zenpm/versions.json"
     }
