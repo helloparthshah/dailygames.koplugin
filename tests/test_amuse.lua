@@ -2,7 +2,8 @@
 -- scramble + base64 the PuzzleMe player uses, then convert it.
 package.path = PLUGDIR .. "/?.lua;" .. PLUGDIR .. "/tests/vendor/?.lua;" .. package.path
 package.loaded["json"] = require("json") -- rxi/json.lua stands in for KOReader's json
-package.loaded["dailygames/http"] = {}
+package.loaded["dailygames/http"] = { decode = function(raw)
+    local ok, d = pcall(package.loaded["json"].decode, raw); return ok and d or nil end }
 local JSON = package.loaded["json"]
 local A = require("dailygames/amuse")
 

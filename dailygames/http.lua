@@ -14,6 +14,28 @@ local Http = {
     user_agent = "KOReader-DailyGames/1.0",
 }
 
+--- KOReader's json module decodes JSON null to a sentinel (a function), not
+-- nil. Remove those (recursively) so `field or default` and type checks work.
+function Http.clean(v)
+    if type(v) == "table" then
+        for k, x in pairs(v) do
+            if type(x) == "function" or (JSON.null ~= nil and x == JSON.null) then
+                v[k] = nil
+            else
+                Http.clean(x)
+            end
+        end
+    end
+    return v
+end
+
+--- json.decode + clean; returns nil on error.
+function Http.decode(raw)
+    local ok, data = pcall(JSON.decode, raw)
+    if not ok then return nil end
+    return Http.clean(data)
+end
+
 --- Performs a request.
 -- opts: url, method ("GET"), headers (table), body (table, sent as JSON), timeout (seconds),
 --       raw (return the body text instead of decoded JSON)
@@ -65,8 +87,8 @@ function Http.request(opts)
         return raw, code -- caller wants the body as text (e.g. HTML)
     end
     if raw ~= "" then
-        local decoded_ok, decoded = pcall(JSON.decode, raw)
-        if decoded_ok and type(decoded) == "table" then
+        local decoded = Http.decode(raw)
+        if type(decoded) == "table" then
             data = decoded
         end
     end

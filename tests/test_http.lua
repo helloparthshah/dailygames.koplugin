@@ -12,4 +12,8 @@ assert(Http.getJson("https://x/a").ok); assert(last.method=="GET")
 local d, code = Http.request{url="https://x/b", method="POST", body={a=1}, headers={Cookie="NYT-S=1"}}
 assert(code==200 and last.headers["Content-Type"]=="application/json" and last.headers.Cookie=="NYT-S=1" and last.headers["Content-Length"]=="6")
 mode="404"; print(Http.getJson("https://x/a")); mode="down"; print(Http.getJson("https://x/a"))
+-- KOReader's json decodes null to a function sentinel; Http.clean removes those
+local sentinel = function() end
+local cleaned = Http.clean({ a = 1, b = sentinel, c = { d = sentinel, e = "x" }, list = { 1, 2 } })
+assert(cleaned.a == 1 and cleaned.b == nil and cleaned.c.d == nil and cleaned.c.e == "x" and #cleaned.list == 2)
 print("HTTP PASSED")

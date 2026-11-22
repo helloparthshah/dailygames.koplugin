@@ -62,6 +62,8 @@ package.loaded["json"] = dofile(PLUGDIR .. "/tests/vendor/json.lua")
 -- fake HTTP: route by url
 ROUTES = {}
 package.loaded["dailygames/http"] = {
+  decode=function(raw) local ok, d = pcall(package.loaded["json"].decode, raw); return ok and d or nil end,
+  clean=function(v) return v end,
   request=function(o) local f = ROUTES[o.url]; if not f then return nil, nil, "no route "..o.url end; return f(o) end,
   getJson=function(url, h) local f = ROUTES[url]; if not f then return nil, "no route" end; local d, c = f({url=url, headers=h}); if c ~= 200 then return nil, "HTTP "..tostring(c) end; return d end,
 }

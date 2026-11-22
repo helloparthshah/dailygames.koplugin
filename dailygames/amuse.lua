@@ -13,7 +13,6 @@ changes the scramble, update PASSES below. Decoded fields:
   placedWords[] = { clueNum, clue = { clue }, x, y, acrossNotDown, nBoxes }
 ]]
 
-local JSON = require("json")
 
 local Http = require("dailygames/http")
 
@@ -82,15 +81,15 @@ end
 local function params(html)
     local raw = html and html:match('<script[^>]-id="params"[^>]*>(.-)</script>')
     if not raw then return nil end
-    local ok, data = pcall(JSON.decode, raw)
-    return ok and type(data) == "table" and data or nil
+    local data = Http.decode(raw)
+    return type(data) == "table" and data or nil
 end
 
 --- Decodes rawc into the puzzle table (or nil).
 function Amuse.decode(rawc)
     for _, candidate in ipairs { Amuse.unscramble(rawc), rawc } do
-        local ok, data = pcall(JSON.decode, Amuse.base64(candidate))
-        if ok and type(data) == "table" and data.box then return data end
+        local data = Http.decode(Amuse.base64(candidate))
+        if type(data) == "table" and data.box then return data end
     end
 end
 

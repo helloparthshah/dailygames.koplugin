@@ -63,8 +63,7 @@ function MoreLess.parsePage(html)
         elseif ch == "}" then
             depth = depth - 1
             if depth == 0 then
-                local ok, data = pcall(JSON.decode, text:sub(start, i))
-                return ok and data or nil
+                return Http.decode(text:sub(start, i))
             end
         end
     end
