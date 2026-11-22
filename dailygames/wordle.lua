@@ -1,14 +1,13 @@
 --[[
 Wordle: six tries to guess a five-letter word.
 
-Tiles:  black = right letter, right spot
-        gray  = in the word, wrong spot
-        white = not in the word
+Tiles and keys use the same three shades:
+  black, white letter  = right letter, right spot
+  gray, black letter   = in the word, wrong spot
+  white, faded letter  = not in the word
+The row you're typing in has a thick black border.
 ]]
 
-local ButtonTable = require("ui/widget/buttontable")
-local HorizontalGroup = require("ui/widget/horizontalgroup")
-local Size = require("ui/size")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
@@ -16,15 +15,7 @@ local NYT = require("dailygames/nyt")
 local Store = require("dailygames/store")
 local UI = require("dailygames/ui")
 
-local Color = UI.Color
 local WORD_LEN, MAX_GUESSES = 5, 6
-
-local KEYBOARD = {
-    { "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P" },
-    { "A", "S", "D", "F", "G", "H", "J", "K", "L" },
-    { "DEL", "Z", "X", "C", "V", "B", "N", "M", "ENTER" },
-}
-
 local RANK = { absent = 1, present = 2, correct = 3 }
 
 --- Two-pass evaluation so repeated letters are scored like NYT does.
@@ -52,30 +43,70 @@ local function evaluate(guess, solution)
     return result
 end
 
-local TILE_STYLE = {
-    correct = { bg = Color.COLOR_BLACK, fg = Color.COLOR_WHITE, border_color = Color.COLOR_BLACK },
-    present = { bg = Color.COLOR_LIGHT_GRAY, fg = Color.COLOR_BLACK, border_color = Color.COLOR_BLACK },
-    absent = { bg = Color.COLOR_WHITE, fg = Color.COLOR_DARK_GRAY, border_color = Color.COLOR_GRAY },
-    empty = { bg = Color.COLOR_WHITE, fg = Color.COLOR_BLACK, border_color = Color.COLOR_GRAY },
-    active = { bg = Color.COLOR_WHITE, fg = Color.COLOR_BLACK, border_color = Color.COLOR_BLACK },
+-- board ----------------------------------------------------------------------
+
+local TILE = {
+    correct = { bg = UI.BLACK, fg = UI.WHITE, border = UI.BLACK, t = 3 },
+    present = { bg = UI.MID, fg = UI.BLACK, border = UI.BLACK, t = 3 },
+    absent = { bg = UI.WHITE, fg = UI.MID, border = UI.LIGHT, t = 2 },
+    empty = { bg = UI.WHITE, fg = UI.BLACK, border = UI.LIGHT, t = 2 },
+    active = { bg = UI.WHITE, fg = UI.BLACK, border = UI.BLACK, t = 4 },
 }
 
-local KEY_LABEL = {
-    correct = function(k) return "■" .. k end,
-    present = function(k) return "[" .. k .. "]" end,
-    absent = function(k) return "·" .. k .. "·" end,
-}
+local Board = UI.Board:extend {}
+
+function Board:setup()
+    self.gap = UI.px(6)
+    self.tile = math.floor(math.min(
+        (self.width - self.gap * (WORD_LEN - 1)) / WORD_LEN,
+        (self.height - self.gap * (MAX_GUESSES - 1)) / MAX_GUESSES))
+    self.ox = math.floor((self.width - (self.tile * WORD_LEN + self.gap * (WORD_LEN - 1))) / 2)
+    self.face = UI.fitFace({ "W", "M" }, self.tile * 0.7, self.tile * 0.6, { bold = true })
+end
+
+function Board:draw(bb, x, y)
+    local app = self.app
+    local guesses, current = app.state.guesses, app.state.current
+    for r = 1, MAX_GUESSES do
+        local guess = guesses[r]
+        local eval = guess and evaluate(guess, app.solution)
+        local active = r == #guesses + 1 and not app:isOver()
+        for c = 1, WORD_LEN do
+            local letter, st = "", TILE.empty
+            if guess then
+                letter, st = guess:sub(c, c), TILE[eval[c]]
+            elseif active then
+                letter, st = current:sub(c, c), TILE.active
+            end
+            local tx = x + self.ox + (c - 1) * (self.tile + self.gap)
+            local ty = y + (r - 1) * (self.tile + self.gap)
+            bb:paintRect(tx, ty, self.tile, self.tile, st.bg)
+            UI.drawBorder(bb, tx, ty, self.tile, self.tile, UI.px(st.t), st.border)
+            UI.drawText(bb, self.face, letter, tx, ty, self.tile, self.tile, st.fg, true)
+        end
+    end
+end
+
+-- app ------------------------------------------------------------------------
 
 local Wordle = UI.FullscreenApp:extend {
     name = "wordle_app",
+    help_text = [[Guess the 5-letter word in 6 tries.
+
+Black tile: right letter, right spot.
+Gray tile: in the word, wrong spot.
+White tile: not in the word.
+
+The keyboard is shaded the same way, so you can see which letters are left.]],
 }
 
 function Wordle:setup()
     self.state = self.state or { guesses = {}, current = "" }
+    if self:isOver() then self.status = self:resultText() end
 end
 
 function Wordle:getTitle()
-    return "Wordle · " .. self.date
+    return "Wordle" .. (self.number and (" #" .. self.number) or "")
 end
 
 function Wordle:isWon()
@@ -84,6 +115,14 @@ end
 
 function Wordle:isOver()
     return self:isWon() or #self.state.guesses >= MAX_GUESSES
+end
+
+function Wordle:resultText()
+    if self:isWon() then
+        local words = { "Genius!", "Magnificent!", "Impressive!", "Splendid!", "Great!", "Phew!" }
+        return string.format("%s Solved in %d/%d.", words[#self.state.guesses] or "Solved!", #self.state.guesses, MAX_GUESSES)
+    end
+    return "The word was " .. self.solution .. "."
 end
 
 function Wordle:keyStates()
@@ -100,83 +139,47 @@ function Wordle:keyStates()
     return states
 end
 
-function Wordle:buildBoard(tile_size)
-    local board = VerticalGroup:new { align = "center" }
-    local active_row = #self.state.guesses + 1
-    for r = 1, MAX_GUESSES do
-        local guess = self.state.guesses[r]
-        local eval = guess and evaluate(guess, self.solution)
-        local row = HorizontalGroup:new { align = "center" }
-        for c = 1, WORD_LEN do
-            local text, style, border = " ", TILE_STYLE.empty, Size.border.thin
-            if guess then
-                text, style, border = guess:sub(c, c), TILE_STYLE[eval[c]], Size.border.thick
-            elseif r == active_row and not self:isOver() then
-                text, style, border = self.state.current:sub(c, c), TILE_STYLE.active, Size.border.thick
-            end
-            table.insert(row, UI.tile {
-                size = tile_size, text = text, bold = true, border = border,
-                bg = style.bg, fg = style.fg, border_color = style.border_color,
-            })
-            if c < WORD_LEN then
-                table.insert(row, UI.hspan(3))
-            end
-        end
-        table.insert(board, row)
-        table.insert(board, UI.span(3))
-    end
-    return board
-end
-
-function Wordle:buildKeyboard(width)
-    local states = self:keyStates()
-    local rows = {}
-    for _, key_row in ipairs(KEYBOARD) do
-        local row = {}
-        for _, key in ipairs(key_row) do
-            local label = key
-            if #key == 1 and states[key] then
-                label = KEY_LABEL[states[key]](key)
-            end
-            table.insert(row, {
-                text = label,
-                enabled = not self:isOver(),
-                callback = function() self:onKey(key) end,
-            })
-        end
-        table.insert(rows, row)
-    end
-    return ButtonTable:new {
-        width = width,
-        buttons = rows,
-        zero_sep = true,
-        show_parent = self,
-    }
-end
-
-function Wordle:statusText()
-    local n = #self.state.guesses
-    if self:isWon() then
-        return string.format("Solved in %d/%d!", n, MAX_GUESSES)
-    elseif self:isOver() then
-        return "Out of guesses. The word was " .. self.solution
-    end
-    return string.format("Guess %d of %d", n + 1, MAX_GUESSES)
-end
-
 function Wordle:buildBody(width, height)
-    local tile_size = math.floor(math.min(width / 7, height / 13))
-    return VerticalGroup:new {
-        align = "center",
-        UI.text("Black: right spot  ·  Gray: wrong spot  ·  White: not in word", width * 0.92,
-            { face = "xx_smallinfofont" }),
-        UI.span(6),
-        self:buildBoard(tile_size),
-        UI.span(4),
-        UI.text(self:statusText(), width * 0.92, { bold = true }),
-        UI.span(6),
-        self:buildKeyboard(math.floor(width * 0.96)),
+    local w = math.floor(width * 0.94)
+    local kb_h = math.floor(math.min(height * 0.3, UI.px(70) * 3))
+    local states = self:keyStates()
+    local keyboard = UI.Keyboard:new {
+        width = w,
+        height = kb_h,
+        rows = {
+            UI.QWERTY[1],
+            UI.QWERTY[2],
+            { { label = "Enter", value = "ENTER", width = 1.5 }, "Z", "X", "C", "V", "B", "N", "M",
+              { label = "⌫", value = "DEL", width = 1.5 } },
+        },
+        state_func = function(k) return states[k] end,
+        enabled = not self:isOver(),
+        on_key = function(k) self:onKey(k) end,
     }
+    local status = self:statusLine(w)
+    local board_h = height - kb_h - status:getSize().h - UI.px(24)
+    local board = Board:new { width = w, height = board_h, app = self }
+    local top = VerticalGroup:new { align = "center", board, UI.span(8), status }
+    return top, keyboard
+end
+
+function Wordle:menuItems()
+    if not self:isOver() then return {} end
+    return { { text = "Copy share text", callback = function() self:copyShare() end } }
+end
+
+--- Copies the usual emoji grid to the clipboard (Kindle fonts can't draw it).
+function Wordle:copyShare()
+    local lines = { string.format("Wordle %s %s/6", tostring(self.number or ""),
+        self:isWon() and #self.state.guesses or "X") }
+    for _, g in ipairs(self.state.guesses) do
+        local row = {}
+        for _, e in ipairs(evaluate(g, self.solution)) do
+            table.insert(row, e == "correct" and "🟩" or e == "present" and "🟨" or "⬜")
+        end
+        table.insert(lines, table.concat(row))
+    end
+    UI.copy(table.concat(lines, "\n"))
 end
 
 function Wordle:save()
@@ -187,24 +190,24 @@ function Wordle:onKey(key)
     if self:isOver() then return end
     local st = self.state
     if key == "DEL" then
-        if #st.current == 0 then return end
         st.current = st.current:sub(1, -2)
+        self.status = ""
     elseif key == "ENTER" then
         if #st.current ~= WORD_LEN then
-            UI.notify("Not enough letters.", 1)
+            self:setStatus("Not enough letters")
             return
         end
         table.insert(st.guesses, st.current)
         st.current = ""
         self:save()
-    else
-        if #st.current >= WORD_LEN then return end
+        self.status = self:isOver() and self:resultText() or ""
+    elseif #st.current < WORD_LEN then
         st.current = st.current .. key
+        self.status = ""
+    else
+        return
     end
     self:refresh()
-    if key == "ENTER" and self:isOver() then
-        UI.notify(self:statusText(), 3)
-    end
 end
 
 function Wordle.launch(date)
@@ -215,6 +218,7 @@ function Wordle.launch(date)
     end
     UIManager:show(Wordle:new {
         date = date,
+        number = data.number,
         solution = data.solution,
         state = Store.loadProgress("wordle", date),
     })

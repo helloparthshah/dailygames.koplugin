@@ -33,7 +33,7 @@ function LS:saveSetting(k,v) self.d[k]=v end
 function LS:delSetting(k) self.d[k]=nil end
 function LS:flush() FLUSHES=(FLUSHES or 0)+1 end
 STORE = store
-local Color = {COLOR_WHITE="W",COLOR_BLACK="B",COLOR_GRAY="G",COLOR_LIGHT_GRAY="LG",COLOR_DARK_GRAY="DG"}
+local Color = {COLOR_WHITE="W",COLOR_BLACK="B",COLOR_GRAY="G",COLOR_LIGHT_GRAY="LG",COLOR_DARK_GRAY="DG",COLOR_GRAY_5="G5",COLOR_GRAY_9="G9",COLOR_GRAY_B="GB",COLOR_GRAY_E="GE"}
 local M = {
  ["ui/widget/confirmbox"]=W("ConfirmBox"), ["ui/widget/infomessage"]=W("InfoMessage"), ["ui/widget/inputdialog"]=InputDialog,
  ["ui/widget/textviewer"]=W("TextViewer"), ["ui/widget/container/widgetcontainer"]=W("WidgetContainer"),
@@ -46,10 +46,11 @@ local M = {
  ["ui/widget/notification"]={notify=function(_, t) table.insert(LOG, "notify "..t) end},
  ["ui/gesturerange"]=W("GestureRange"),
  ["ui/geometry"]={new=function(_, t) return t end}, ["ui/size"]={border={thin=1,default=2,thick=3}},
+ ["ui/rendertext"]={sizeUtf8Text=function(_, x, w, face, text) local sz=(face and face[2]) or 10; return {x=#text*sz*0.6, y_top=sz*0.7, y_bottom=sz*0.2} end, renderUtf8Text=function() end},
  ["ui/font"]={getFace=function(_, n, s) return {n,s} end},
  ["ffi/blitbuffer"]=Color,
  ["datastorage"]={getSettingsDir=function() return "/x" end},
- ["device"]={screen={getWidth=function() return 1072 end,getHeight=function() return 1448 end,scaleBySize=function(_,x) return x end},
+ ["device"]={screen={getWidth=function() return 1072 end,getHeight=function() return 1448 end,scaleBySize=function(_,x) return x end, getDPI=function() return 300 end},
    hasKeys=function() return false end, input={setClipboardText=function(t) table.insert(LOG,"clip "..t) end}},
  ["dispatcher"]={registerAction=function(_, id, t) ACTIONS=ACTIONS or {}; ACTIONS[id]=t end},
  ["luasettings"]=LS, ["ui/network/manager"]={runWhenOnline=function(_, f) f() end}, ["ui/uimanager"]=UIManager,

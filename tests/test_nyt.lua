@@ -13,12 +13,13 @@ e = W.evaluate("EERIE", "THREE"); print("EERIE/THREE", table.concat(e,","))
 ROUTES[N.."/wordle/v2/"..d..".json"] = function() return {solution="crane", days_since_launch=1600}, 200 end
 plug:onDailyGamesWordle()
 local app = top(); assert(app._name=="wordle_app", app._name)
-for _,k in ipairs{"S","L","A","T","E","ENTER"} do press(app, k) end
+for _,k in ipairs{"S","L","A","T","E","ENTER"} do app:onKey(k) end
 assert(#app.state.guesses==1)
-local labels = {}; for _,b in ipairs(findButtons(app)) do labels[b.text]=true end
-assert(labels["■A"] and labels["·S·"] and labels["■E"], "key labels")
+local ks = app:keyStates(); assert(ks.A=="correct" and ks.S=="absent" and ks.E=="correct", "key states")
+app:onKey("ENTER"); assert(app.status=="Not enough letters")
+
 for _,k in ipairs{"C","R","A","N","X","DEL","E","ENTER"} do app:onKey(k) end
-assert(app:isWon()); print("wordle status:", app:statusText())
+assert(app:isWon()); print("wordle status:", app.status)
 assert(STORE["progress/wordle"].state.guesses[2]=="CRANE")
 app:onClose()
 -- relaunch restores
@@ -32,13 +33,13 @@ for i, ws in ipairs(words) do local cards = {}; for _, w in ipairs(ws) do cards[
 ROUTES[N.."/connections/v2/"..d..".json"] = function() return {categories=cats, id=5}, 200 end
 plug:onDailyGamesConnections(); app = top(); assert(app._name=="connections_app")
 assert(#app.state.remaining==16)
-for _,w in ipairs{"A1","A2","A3","A4"} do press(app, w) end
+for _,w in ipairs{"A1","A2","A3","A4"} do app:toggle(w) end
 press(app, "Submit (4/4)"); assert(#app.state.solved==1 and #app.state.remaining==12)
-for _,w in ipairs{"B1","B2","B3","C1"} do press(app, w) end; press(app, "Submit (4/4)")
-assert(app.state.mistakes==1); print(LOG[#LOG])
-for _,w in ipairs{"B1","B2","B3","C1"} do press(app, w) end; press(app, "Submit (4/4)"); print(LOG[#LOG]); assert(app.state.mistakes==1); press(app, "Deselect")
-for i=1,3 do for _,w in ipairs{"B1","B2","C2","D"..i} do press(app, w) end; press(app, "Submit (4/4)") end
-assert(app:isOver() and #app.state.solved==4 and #app.state.remaining==0); print("conn:", app:statusText())
+for _,w in ipairs{"B1","B2","B3","C1"} do app:toggle(w) end; press(app, "Submit (4/4)")
+assert(app.state.mistakes==1 and app.status=="One away…", app.status)
+for _,w in ipairs{"B1","B2","B3","C1"} do app:toggle(w) end; press(app, "Submit (4/4)"); assert(app.status=="Already guessed!" and app.state.mistakes==1); press(app, "Deselect")
+for i=1,3 do for _,w in ipairs{"B1","B2","C2","D"..i} do app:toggle(w) end; press(app, "Submit (4/4)") end
+assert(app:isOver() and #app.state.solved==4 and #app.state.remaining==0); print("conn:", app.status)
 app:onClose()
 
 -- STRANDS
@@ -51,16 +52,17 @@ ROUTES[N.."/strands/v2/"..d..".json"] = function() return {clue="Pets", starting
   themeWords={"CATS"}, spangram="DOGS", themeCoords={CATS={{0,0},{0,1},{0,2},{0,3}}}, spangramCoords={{1,0},{1,1},{1,2},{1,3}} }, 200 end
 STORE["progress/strands"] = nil
 plug:onDailyGamesStrands(); app = top()
-app:tapCell(1,1); app:tapCell(1,2); app:tapCell(1,3); app:tapCell(1,3); assert(#app.state.path==2) -- undo
+app:tapCell(1,1); app:tapCell(1,2); app:tapCell(1,3); press(app, "Undo"); assert(#app.state.path==2)
+app:tapCell(1,3); app:tapCell(1,1); assert(#app.state.path==1, "tap earlier letter backs up") ; app:tapCell(1,2)
 app:tapCell(3,4); assert(#app.state.path==1) -- non adjacent restarts
 app:clearPath()
-for c=1,4 do app:tapCell(1,c) end; assert(app:pathWord()=="CATS"); press(app, "Submit")
+for c=1,4 do app:tapCell(1,c) end; assert(app:pathWord()=="CATS"); app:tapCell(1,4) -- tap last letter again submits
 assert(#app.state.found==1)
 press(app, "Hint"); assert(app.state.hint=="DOGS")
-local lbl={}; for _,b in ipairs(findButtons(app)) do lbl[b.text]=true end; assert(lbl["(C)"] and lbl["{D}"])
+local marks = app:cellMarks(); assert(marks["1:1"]=="theme" and marks["2:1"]=="hint")
 -- wrong path spelling DOGS? use diagonal path not matching coords: D(2,1) O(2,2) G(2,3) S(1,4) -> S at row1 col4 adjacent to G(2,3)
-app:tapCell(2,1); app:tapCell(2,2); app:tapCell(2,3); app:tapCell(1,4); assert(app:pathWord()=="DOGS"); press(app,"Submit"); assert(#app.state.found==1, "wrong cells must not count")
-for c=1,4 do app:tapCell(2,c) end; press(app,"Submit"); assert(app:isOver()); print(LOG[#LOG])
+app:tapCell(2,1); app:tapCell(2,2); app:tapCell(2,3); app:tapCell(1,4); assert(app:pathWord()=="DOGS"); press(app,"Submit"); assert(#app.state.found==1, "wrong cells must not count"); assert(app.status:find("isn"))
+for c=1,4 do app:tapCell(2,c) end; press(app,"Submit"); assert(app:isOver()); print("strands:", app.status)
 app:onClose()
 
 -- CROSSWORD (3x3 with one block)
@@ -76,22 +78,27 @@ local body = {dimensions={width=3,height=3}, cells={
 ROUTES[N.."/crosswords/v6/puzzle/mini.json"] = function(o) return {body={body}, publicationDate="2026-11-22"}, 200 end
 plug:onDailyGamesMini(); app = top(); assert(app._name=="crossword_app", tostring(app._name))
 assert(app:currentClue().text=="Pet")
-for _,k in ipairs{"C","A","X"} do press(app,k) end
-assert(app.state.entries[3]=="X" and app.state.cursor==3)
-press(app,"DEL"); assert(not app.state.entries[3]); press(app,"T")
-press(app,"Next ›"); assert(app:currentClue().text=="Web" and app.state.cursor==7)
+app:onKey("C"); app:onKey("A"); assert(app.state.cursor==3)
+app:onKey("X"); assert(app.state.entries[3]=="X" and app.state.cursor==7, "full word jumps to next clue")
+app.state.cursor = 3; app:onKey("DEL"); assert(not app.state.entries[3]); app:onKey("T")
+assert(app:currentClue().text=="Web" and app.state.cursor==7)
+press(app,"‹"); assert(app:currentClue().text=="Pet"); press(app,"›"); assert(app:currentClue().text=="Web")
 press(app,"Across"); assert(app.state.direction=="Down" and app:currentClue().text=="Moo")
-press(app,"▲"); assert(app.state.cursor==4); press(app,"▲"); assert(app.state.cursor==1)
-press(app,"▶"); assert(app.state.direction=="Across" and app.state.cursor==1); press(app,"▶"); assert(app.state.cursor==2)
--- tap cell
-local cells = findAll(app, "InputContainer"); assert(#cells==9, #cells)
-cells[5]:onTap(); assert(app.state.cursor==2) -- block ignored
-cells[9]:onTap(); assert(app.state.cursor==9)
-cells[9]:onTap(); assert(app.state.direction=="Down")
+-- tap cells through the drawn grid
+local grid
+local function findGrid(w) if type(w)~="table" then return end if w.cell and w.app then return w end for _, ch in ipairs(w) do local g = findGrid(ch) if g then return g end end end
+grid = findGrid(app)
+assert(grid, "grid board")
+local function tapCell(idx) local r = math.floor((idx-1)/3); local c = (idx-1)%3; grid:tapAt(grid.ox + c*grid.cell + 1, grid.oy + r*grid.cell + 1) end
+app.state.cursor = 2; tapCell(5); assert(app.state.cursor==2, "block ignored")
+grid = nil; grid = findGrid(app)
+tapCell(9); assert(app.state.cursor==9)
+grid = findGrid(app)
+tapCell(9); assert(app.state.direction=="Across", "second tap toggles")
 app.state.entries[4]="O"; app.state.entries[6]="O"; app.state.entries[7]="W"; app.state.entries[8]="Q"; app.state.cursor=9
-press(app,"B"); assert(not app:isSolved())
-press(app,"Check"); local cb = top(); assert(cb._name=="ConfirmBox", cb._name); print(cb.text); cb.ok_callback(); assert(not app.state.entries[8])
-app.state.cursor=8; app.state.direction="Across"; press(app,"E"); assert(app:isSolved()); print(LOG[#LOG])
+app:onKey("B"); assert(not app:isSolved() and app.status=="Not quite. Try Check.", app.status)
+press(app,"Check"); assert(app.wrong[8] and app.status=="1 wrong letter marked", app.status)
+app.state.cursor=8; app.state.direction="Across"; app:onKey("E"); assert(app:isSolved() and not app.wrong[8]); print("mini:", app.status)
 press(app,"Clues"); local menu = top(); assert(menu._name=="Menu" and #menu.item_table==5); print(menu.item_table[3].text); menu.item_table[5].callback()
 assert(app:currentClue().text=="Tob")
 app:onClose(); assert(STORE["progress/crossword_mini"].date=="2026-11-22")

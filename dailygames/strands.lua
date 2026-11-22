@@ -1,11 +1,13 @@
 --[[
-Strands: find the theme words hidden in the letter grid, plus the spangram.
+Strands: find the theme words hidden in the letter grid, plus the spangram
+(a word that spans the board from one side to the other).
 
-Tap letters to build a path; each tap must touch the previous letter
-(including diagonals). Tap the last letter again to undo it, or tap a
-non-adjacent letter to start a new path.
+Tap letters to build a word; each letter must touch the previous one
+(diagonals count). Selected letters turn black and are joined by a line.
+Tap the last letter again (or Submit) to check the word. Tap a letter that
+isn't next to your path to start over from there.
 
-Labels: [A] selected   (A) theme word found   *A* spangram   {A} hint
+Found theme words are shaded gray; the spangram is dark with white letters.
 ]]
 
 local ButtonTable = require("ui/widget/buttontable")
@@ -24,27 +26,103 @@ local function isAdjacent(a, b)
     return math.abs(a[1] - b[1]) <= 1 and math.abs(a[2] - b[2]) <= 1 and not (a[1] == b[1] and a[2] == b[2])
 end
 
-local Strands = UI.FullscreenApp:extend {
-    name = "strands_app",
-}
+-- board ----------------------------------------------------------------------
 
-function Strands:setup()
-    self.state = self.state or {
-        path = {},   -- list of {row, col} (1-based)
-        found = {},  -- list of words
-        hint = nil,  -- word currently hinted
-    }
-    self.targets = {}
-    for _, w in ipairs(self.theme_words) do
-        self.targets[w] = "theme"
-    end
-    if self.spangram ~= "" then
-        self.targets[self.spangram] = "spangram"
+local Board = UI.Board:extend {}
+
+function Board:setup()
+    local app = self.app
+    self.rows, self.cols = #app.board, #app.board[1]
+    self.cell = math.floor(math.min(self.width / self.cols, self.height / self.rows))
+    self.ox = math.floor((self.width - self.cell * self.cols) / 2)
+    self.oy = math.floor((self.height - self.cell * self.rows) / 2)
+    self.r = math.floor(self.cell * 0.4)
+    self.face = UI.fitFace({ "W", "M" }, self.r * 1.3, self.r * 1.1, { bold = true })
+end
+
+function Board:center(r, c)
+    return self.ox + (c - 1) * self.cell + math.floor(self.cell / 2),
+        self.oy + (r - 1) * self.cell + math.floor(self.cell / 2)
+end
+
+local function drawPath(self, bb, x, y, cells, base, t, color)
+    for i = 2, #cells do
+        local x1, y1 = self:center(cells[i - 1][1] + base, cells[i - 1][2] + base)
+        local x2, y2 = self:center(cells[i][1] + base, cells[i][2] + base)
+        UI.drawLine(bb, x + x1, y + y1, x + x2, y + y2, t, color)
     end
 end
 
+function Board:draw(bb, x, y)
+    local app = self.app
+    local marks = app:cellMarks()
+    local selected = {}
+    for _, p in ipairs(app.state.path) do selected[cellKey(p[1], p[2])] = true end
+
+    -- lines first, so letters sit on top
+    for _, w in ipairs(app.state.found) do
+        local coords = app.coords[w]
+        if coords then
+            drawPath(self, bb, x, y, coords, 1, math.floor(self.r * 0.6),
+                app.targets[w] == "spangram" and UI.DARK or UI.LIGHT)
+        end
+    end
+    drawPath(self, bb, x, y, app.state.path, 0, math.floor(self.r * 0.35), UI.BLACK)
+
+    for r = 1, self.rows do
+        for c = 1, self.cols do
+            local cx, cy = self:center(r, c)
+            cx, cy = x + cx, y + cy
+            local key = cellKey(r, c)
+            local kind = selected[key] and "selected" or marks[key]
+            local fg = UI.BLACK
+            if kind == "selected" then
+                UI.fillCircle(bb, cx, cy, self.r, UI.BLACK)
+                fg = UI.WHITE
+            elseif kind == "spangram" then
+                UI.fillCircle(bb, cx, cy, self.r, UI.DARK)
+                fg = UI.WHITE
+            elseif kind == "theme" then
+                UI.fillCircle(bb, cx, cy, self.r, UI.LIGHT)
+            elseif kind == "hint" then
+                UI.ringCircle(bb, cx, cy, self.r, UI.px(4), UI.BLACK)
+            end
+            UI.drawText(bb, self.face, app:letterAt(r, c), cx - self.r, cy - self.r, 2 * self.r, 2 * self.r, fg, true)
+        end
+    end
+end
+
+function Board:tapAt(lx, ly)
+    local c = math.floor((lx - self.ox) / self.cell) + 1
+    local r = math.floor((ly - self.oy) / self.cell) + 1
+    if r >= 1 and r <= self.rows and c >= 1 and c <= self.cols then
+        self.app:tapCell(r, c)
+    end
+end
+
+-- app ------------------------------------------------------------------------
+
+local Strands = UI.FullscreenApp:extend {
+    name = "strands_app",
+    help_text = [[Find the theme words hidden in the grid.
+
+Tap letters one by one; each must touch the last (diagonals count). Selected letters turn black and are joined by a line.
+
+Tap the last letter again, or Submit, to check the word. Tap a letter away from your path to start over.
+
+Found words turn gray. The spangram, which crosses the whole board, turns dark. Hint circles the letters of a word you haven't found.]],
+}
+
+function Strands:setup()
+    self.state = self.state or { path = {}, found = {}, hint = nil }
+    self.targets = {}
+    for _, w in ipairs(self.theme_words) do self.targets[w] = "theme" end
+    if self.spangram ~= "" then self.targets[self.spangram] = "spangram" end
+    if self:isOver() then self.status = "All words found!" end
+end
+
 function Strands:getTitle()
-    return "Strands · " .. self.date
+    return "Strands"
 end
 
 function Strands:totalWords()
@@ -76,7 +154,7 @@ function Strands:pathWord()
     return table.concat(letters)
 end
 
---- Map of cellKey -> "theme" / "spangram" / "hint" for cells to decorate.
+--- cellKey -> "theme" / "spangram" / "hint" for cells to shade.
 function Strands:cellMarks()
     local marks = {}
     local function mark(word, kind)
@@ -84,68 +162,36 @@ function Strands:cellMarks()
             marks[cellKey(rc[1] + 1, rc[2] + 1)] = kind
         end
     end
-    for _, w in ipairs(self.state.found) do
-        mark(w, self.targets[w])
-    end
-    if self.state.hint and not self:isFound(self.state.hint) then
-        mark(self.state.hint, "hint")
-    end
+    if self.state.hint and not self:isFound(self.state.hint) then mark(self.state.hint, "hint") end
+    for _, w in ipairs(self.state.found) do mark(w, self.targets[w]) end
     return marks
 end
 
-local LABEL = {
-    selected = function(ch) return "[" .. ch .. "]" end,
-    theme = function(ch) return "(" .. ch .. ")" end,
-    spangram = function(ch) return "*" .. ch .. "*" end,
-    hint = function(ch) return "{" .. ch .. "}" end,
-}
-
-function Strands:buildGrid(width)
-    local selected = {}
-    for _, p in ipairs(self.state.path) do
-        selected[cellKey(p[1], p[2])] = true
-    end
-    local marks = self:cellMarks()
-
-    local rows = {}
-    for r, line in ipairs(self.board) do
-        local row = {}
-        for c = 1, #line do
-            local ch = line:sub(c, c)
-            local key = cellKey(r, c)
-            local kind = selected[key] and "selected" or marks[key]
-            table.insert(row, {
-                text = kind and LABEL[kind](ch) or ch,
-                callback = function() self:tapCell(r, c) end,
-            })
-        end
-        table.insert(rows, row)
-    end
-    local has_path = #self.state.path > 0
-    table.insert(rows, {
-        { text = "Clear", enabled = has_path, callback = function() self:clearPath() end },
-        { text = "Hint", enabled = not self:isOver(), callback = function() self:giveHint() end },
-        { text = "Submit", enabled = has_path, callback = function() self:submit() end },
-    })
-    return ButtonTable:new { width = width, buttons = rows, zero_sep = true, show_parent = self }
-end
-
-function Strands:buildBody(width)
+function Strands:buildBody(width, height)
     local w = math.floor(width * 0.94)
-    local current = #self.state.path > 0 and self:pathWord() or "Tap adjacent letters to spell a word"
-    return VerticalGroup:new {
-        align = "center",
-        UI.banner({ { text = "Theme: " .. self.clue, bold = true } }, w),
-        UI.span(4),
-        UI.text(string.format("%d of %d words found", #self.state.found, self:totalWords()), w,
-            { face = "xx_smallinfofont" }),
-        UI.span(2),
-        UI.text(current, w, { bold = #self.state.path > 0 }),
-        UI.span(4),
-        self:buildGrid(w),
-        UI.span(4),
-        UI.text("[A] selected  (A) found  *A* spangram  {A} hint", w, { face = "xx_smallinfofont" }),
+    local has_path = #self.state.path > 0
+    local over = self:isOver()
+    local theme = UI.text("Theme: " .. self.clue, w, { bold = true, face = "infofont" })
+    local progress = UI.text(string.format("%d of %d words found", #self.state.found, self:totalWords()), w,
+        { face = "smallinfofont" })
+    local word = UI.text(has_path and self:pathWord() or " ", w, { bold = true, face = "infofont", size = 28 })
+    local top_info = VerticalGroup:new { align = "center", theme, UI.span(2), progress }
+
+    local buttons = ButtonTable:new {
+        width = w,
+        show_parent = self,
+        buttons = { {
+            { text = "Undo", enabled = has_path, callback = function() self:undo() end },
+            { text = "Clear", enabled = has_path, callback = function() self:clearPath() end },
+            { text = "Hint", enabled = not over, callback = function() self:giveHint() end },
+            { text = "Submit", enabled = has_path, callback = function() self:submit() end },
+        } },
     }
+    local bottom = VerticalGroup:new { align = "center", self:statusLine(w), UI.span(8), buttons }
+    local board_h = height - top_info:getSize().h - word:getSize().h - bottom:getSize().h - UI.px(28)
+    local board = Board:new { width = w, height = board_h, app = self }
+    local top = VerticalGroup:new { align = "center", top_info, UI.span(6), word, UI.span(6), board }
+    return top, bottom
 end
 
 function Strands:save()
@@ -155,27 +201,33 @@ end
 function Strands:tapCell(r, c)
     if self:isOver() then return end
     local path = self.state.path
-    local cell = { r, c }
     local last = path[#path]
-
     if last and last[1] == r and last[2] == c then
-        table.remove(path) -- undo last letter
-    else
-        for _, p in ipairs(path) do
-            if p[1] == r and p[2] == c then return end -- already in path
-        end
-        if last and not isAdjacent(last, cell) then
-            self.state.path = { cell } -- start over from here
-        else
-            table.insert(path, cell)
+        return self:submit() -- tapping the last letter again checks the word
+    end
+    for i, p in ipairs(path) do
+        if p[1] == r and p[2] == c then
+            -- tapping an earlier letter of the path backs up to it
+            for _ = #path, i + 1, -1 do table.remove(path) end
+            return self:setStatus("")
         end
     end
-    self:refresh()
+    if last and not isAdjacent(last, { r, c }) then
+        self.state.path = { { r, c } }
+    else
+        table.insert(path, { r, c })
+    end
+    self:setStatus("")
+end
+
+function Strands:undo()
+    table.remove(self.state.path)
+    self:setStatus("")
 end
 
 function Strands:clearPath()
     self.state.path = {}
-    self:refresh()
+    self:setStatus("")
 end
 
 --- True if the current path is exactly where `word` sits on the board.
@@ -184,9 +236,7 @@ function Strands:pathMatches(word)
     if not coords then return true end -- no coordinates in data: accept by spelling
     if #coords ~= #self.state.path then return false end
     local wanted = {}
-    for _, rc in ipairs(coords) do
-        wanted[cellKey(rc[1] + 1, rc[2] + 1)] = true
-    end
+    for _, rc in ipairs(coords) do wanted[cellKey(rc[1] + 1, rc[2] + 1)] = true end
     for _, p in ipairs(self.state.path) do
         if not wanted[cellKey(p[1], p[2])] then return false end
     end
@@ -195,36 +245,24 @@ end
 
 function Strands:submit()
     local word = self:pathWord()
-    if #word < 4 then
-        UI.notify("Too short.", 1)
-        return
-    end
+    if #word < 4 then return self:setStatus("Too short") end
     local kind = self.targets[word]
     local matches = kind and self:pathMatches(word)
     self.state.path = {}
 
     if kind and self:isFound(word) then
-        UI.notify("Already found.", 1)
+        return self:setStatus("Already found")
     elseif matches then
         table.insert(self.state.found, word)
         if self.state.hint == word then self.state.hint = nil end
         self:save()
-        self:refresh()
-        if self:isOver() then
-            UI.notify("Strands complete!", 3)
-        elseif kind == "spangram" then
-            UI.notify("SPANGRAM: " .. word, 2)
-        else
-            UI.notify("Found " .. word, 1)
-        end
-        return
-    else
-        UI.notify("\"" .. word .. "\" is not a theme word.", 1.2)
+        if self:isOver() then return self:setStatus("All words found!") end
+        return self:setStatus(kind == "spangram" and ("SPANGRAM! " .. word) or ("Found " .. word))
     end
-    self:refresh()
+    self:setStatus(word .. " isn't a theme word")
 end
 
---- Highlights the letters of an unfound theme word (spangram last).
+--- Circles the letters of an unfound theme word (spangram last).
 function Strands:giveHint()
     local order = {}
     for _, w in ipairs(self.theme_words) do table.insert(order, w) end
@@ -233,11 +271,10 @@ function Strands:giveHint()
         if not self:isFound(w) then
             self.state.hint = w
             self:save()
-            self:refresh()
-            if not self.coords[w] then
-                UI.notify(string.format("Hint: %d letters, starts with %s…", #w, w:sub(1, 2)), 2)
+            if self.coords[w] then
+                return self:setStatus("Hint: the circled letters spell a theme word")
             end
-            return
+            return self:setStatus(string.format("Hint: %d letters, starts with %s…", #w, w:sub(1, 2)))
         end
     end
 end
