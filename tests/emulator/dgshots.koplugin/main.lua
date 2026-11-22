@@ -173,6 +173,11 @@ local STEPS = {
     function() shot("foodguessr_guess") end,
     function() closeAllGames() end,
 
+    -- More/Less (start screen only, so CI doesn't send guesses)
+    function() mod("moreless").launch() end,
+    function() shot("moreless_start") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,

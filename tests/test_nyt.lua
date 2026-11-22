@@ -122,7 +122,7 @@ ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==10); hub.buttons[10][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==11); hub.buttons[11][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
@@ -164,4 +164,29 @@ assert(F.roundScore(app.rounds[1], app.pairs, { "CL" }) == 5000)
 app:nextRound(); assert(app.state.round == 2)
 app:onClose()
 plug:onDailyGamesFoodGuessr(); assert(top().state.round == 2, "progress restored"); top():onClose()
+-- MORE/LESS
+local ML = require("dailygames/moreless")
+assert(ML.dayNumber("2026-11-21") == 450)
+assert(ML.formatStat(3, "65000000000") == "$65,000,000,000" and ML.formatStat(2, "8.2") == "8.2" and ML.formatStat(0, "3350000") == "3,350,000")
+local items = {}
+for c = 0, 4 do for r = 1, 6 do items[#items + 1] = string.format('{"roundNumber":%d,"image":null,"title":"C%dR%d","description":null,"categoryId":%d}', r, c, r, c) end end
+local payload = '{"rounds":[' .. table.concat(items, ",") .. '],"date":"2026-11-21"}'
+local escaped = payload:gsub('\\', '\\\\'):gsub('"', '\\"')
+local html = '<script>self.__next_f.push([1,"0:junk\\n"])</script><script>self.__next_f.push([1,"5:' .. escaped .. '"])</script>'
+local parsed = ML.parsePage(html); assert(parsed and parsed.date == "2026-11-21" and #parsed.rounds == 30, "parse flight data")
+ROUTES["https://lessgames.com/moreless"] = function(o) assert(o.raw); return html, 200 end
+local guesses = 0
+ROUTES["https://api.lessgames.com/moreless/guess"] = function(o)
+    guesses = guesses + 1
+    local r = o.body.roundIndex + 1
+    return { correct = o.body.direction == "left", stats = { [tostring(r)] = "200", [tostring(r + 1)] = "100" } }, 200
+end
+plug:onDailyGamesMoreLess(); app = top(); assert(app._name == "moreless_app", tostring(app._name))
+assert(app:items().title == "C0R1")
+app:pick("left"); assert(app.state.revealed and app.state.results["0"][1] == true and app:statFor(2) == "100")
+app:advance(); assert(app.state.round == 2 and app:items().title == "C0R2")
+for c = 0, 4 do for r = (c == 0 and 2 or 1), 5 do app:pick(r % 2 == 0 and "right" or "left"); app:advance() end end
+assert(app:isOver() and guesses == 25, "all rounds played: " .. guesses)
+print("moreless score:", app:score())
+app:onClose()
 print("ALL NYT TESTS PASSED")
