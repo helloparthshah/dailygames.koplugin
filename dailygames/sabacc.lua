@@ -1240,47 +1240,91 @@ end
 
 -- app ---------------------------------------------------------------------------------
 
-local HELP = [[Corellian Spike, Outer Rim Sabacc League rules.
+local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
 
-Goal: the best hand after three rounds, as close to zero as you can.
+GOAL
+Have the best hand at the end of 3 rounds, as close to zero as possible.
 
-Cards: +1 to +10 and −1 to −10 (three of each) and two sylops worth 0. The number is in the top band, with one dot per point in the bottom band. Positive cards are black, negative dark gray. 7 to 10 are solid face cards; the sylop has a ringed hexagon.
+THE CARDS
+62 cards: +1 to +10 and −1 to −10, three of each, plus two sylops worth 0.
+• The number is in the top band; the bottom band has one dot per point.
+• Positive cards are black, negative cards dark gray (the number keeps its sign too).
+• 1 to 6 show that many suit symbols (circles, triangles or squares). 7 to 10 are solid face cards with an ornate design. The sylop is a black card with a ringed hexagon.
 
-Each hand everyone antes 20 to the Pot and 10 to the Sabacc Pot and gets 2 cards. The dealer moves one seat each hand; play starts at the dealer's left.
+EACH HAND
+• Everyone antes 20 to the Pot and 10 to the Sabacc Pot, and is dealt 2 cards. The top card of the deck is turned face up as the discard pile.
+• The dealer (marked DEALER) moves one seat to the left each hand. Play starts at the dealer's left.
+• A hand is 3 rounds. Each round has three phases:
 
-Each round:
-1. Trading. Do one:
-• Buy deck (10): add the top card of the deck to your hand.
-• Buy discard (20): add the face-up discard to your hand.
-• Trade: tap one of your cards first, then Trade with deck or Trade with discard (free) to swap it.
-• Stand.
-2. Betting: Check, Raise, Call or Junk. Junking folds your hand and costs 10. Betting goes round until everyone has matched the bet.
-3. Spike dice: on doubles every hand is replaced with new cards.
+1. TRADING. Do one of these:
+• Buy deck (10 credits): add the top card of the deck to your hand.
+• Buy discard (20 credits): add the face-up discard to your hand. If the discard pile is empty, the top card of the deck is discarded first.
+• Trade with deck (free): give up one of your cards to the discard pile and draw the top card of the deck in its place.
+• Trade with discard (free): take the face-up discard and give up one of your cards in its place.
+• Stand: do nothing.
 
-After round 3 the best hand takes the Pot. If it totals exactly zero it also takes the Sabacc Pot; otherwise the Sabacc Pot rides to the next hand. See ☰ > Winning hands.]]
+2. BETTING. The bet starts at 0. Going round from the dealer's left, each player can:
+• Check, if no one has raised.
+• Raise the bet.
+• Call: pay what you owe to match the bet.
+• Junk: fold. Your cards go to the junk pile and you pay a 10 penalty into the Pot. If you can't cover the bet, you must junk.
+Betting goes round until everyone still in has matched the bet. If only one player is left, they win the hand at once.
 
-local HANDS = [[Winning hands, best first (Outer Rim Sabacc League):
+3. SPIKE DICE. Two dice are rolled. On doubles (a Sabacc Shift) every player discards their hand and is dealt a new hand of the same size.
 
+WINNING
+After round 3 the best hand takes the Pot. If that hand totals exactly zero, it also takes the Sabacc Pot; otherwise the Sabacc Pot rides on to the next hand.
+
+WINNING HANDS, best first
 1. Pure Sabacc: 0 0
 2. Full Sabacc: −10 −10 0 +10 +10
 3. Yee-Haa: zero with a pair and a sylop
-4. Rhylet: zero with three of a kind of one sign and a pair of the other
+4. Rhylet: zero with three of a kind of one sign and a pair of the other (five cards)
 5. Straight Staves: +7 −8 −9 +10, or the inverse
 6. Squadron: zero with four of a kind
 7. Gee Whiz: +1 +2 +3 +4 −10, or the inverse
-8. Straight Khyron: zero with a run of four
+8. Straight Khyron: zero with a run of four (four cards)
 9. Rule of Two: zero with two pairs
 10. Sabacc: zero with one pair
-11. Any other zero (Sabacc)
-12. Nulrhek: not zero; closest to zero wins
+11. Sabacc: any other hand totalling zero
+12. Nulrhek: any hand that isn't zero
+Pairs, kinds and runs go by a card's number, whatever its sign (+5 and −5 are a pair).
 
-Pairs, kinds and runs go by number, whatever the sign. In a tie, lower pairs and runs win. Then: Sabacc with most cards, highest positive sum, highest positive card. Nulrhek: closest to zero, positive sum, most cards, highest positive sum, highest positive card. Still tied: a blind card draw.]]
+TIES
+• Same named hand: the lower pair, kind or run wins.
+• Then, for a Sabacc: most cards, then highest positive sum, then highest positive card.
+• For a Nulrhek: closest to zero, then a positive total beats a negative one, then most cards, then highest positive sum, then highest positive card.
+• Still tied: a blind card draw; the highest card wins.
+
+CONTROLS
+• The buttons at the bottom are the moves you can make right now; each shows its cost underneath. Greyed-out buttons are ones you can't afford.
+• To trade, tap one of your cards first (it lifts up). The buttons change to Trade with deck, Trade with discard and Cancel. Tap the card again to put it back.
+• The line above the buttons on the right tells you what to do: TAP A CARD TO TRADE, YOU OWE 10 and so on.
+• The message in the middle sums up what happened since your last move: raises, who junked, the spike dice and the result.
+• Each opponent's panel shows their credits, how many cards they hold and their last move. At the showdown their cards are turned up and the winner's panel turns black with a star.
+• The table shows the deck, the discard pile, the Pot, the Sabacc Pot and the spike dice.
+• Hands of more than five cards overlap; tap the visible edge of a card to pick it.
+• ☰ (top left) opens this menu; ✕ (top right) or the Back key closes the game. Your table is saved, so you can come back to it.
+
+HOUSE CHOICES
+Where the rules leave something open, this game does the following:
+• Raises are 10 or 20 at a time, and there are at most 3 raises in a betting phase, so hands keep moving.
+• Everyone starts with 300 credits. A computer player who runs low buys back in with 300. If you can't cover the ante, start a new table from this menu.
+• The ORSL hand list is used, so Fleet, Prime Sabacc, Idiot's Array and similar hands from other tables count only as the plain hands they also are.
+
+SOURCE
+Rules adapted from "Sabacc: Corellian Spike" v1.1 by Ender Smith (CC-BY-SA 2.0), Outer Rim Sabacc League rules and winning hands. This is an unofficial fan game.]]
 
 local App = UI.FullscreenApp:extend {
     name = "sabacc_app",
     title = "Sabacc",
-    help_text = HELP,
 }
+
+--- How to play, in a scrollable viewer (too long for a popup).
+function App:showHelp()
+    local TextViewer = require("ui/widget/textviewer")
+    UIManager:show(TextViewer:new { title = "How to play Sabacc", text = HELP })
+end
 
 function App:setup()
     if not self.game then
@@ -1380,7 +1424,7 @@ end
 
 function App:menuItems()
     return {
-        { text = "Winning hands", callback = function() UI.error(HANDS) end },
+        { text = "How to play", callback = function() self:showHelp() end },
         { text = "New table (reset credits)", callback = function() self:newTable() end },
     }
 end
