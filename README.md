@@ -61,9 +61,24 @@ On e-ink, colours become shades: black means right, gray means partly right, and
 
 **NYT Daily Crossword:** the full crossword is subscriber content. If it doesn't load, set your `NYT-S` cookie under Tools > Daily Games. The Mini works without it.
 
+## Sabacc
+
+A built-in Corellian Spike table against three computer players: Tal Merrow (a smuggler), K-7 Unit (a droid) and Old Jessa (a cantina owner). It needs no Wi-Fi and isn't a daily puzzle, so play as many hands as you like. Credits, the Sabacc Pot and the hand in progress are saved.
+
+It follows the Outer Rim Sabacc League rules:
+
+- **Goal:** the best hand after 3 rounds, as close to zero as possible. The deck has +1 to +10 and −1 to −10 (three of each) and two sylops worth 0.
+- **Each hand:** everyone antes 20 to the Pot and 10 to the Sabacc Pot and gets 2 cards. The dealer moves one seat each hand.
+- **Each round:** *trading* (buy from the deck for 10, buy the discard for 20, trade a card with the deck or the discard for free, or stand), then *betting* (check, raise, call or junk; junking costs 10), then the *spike dice* (doubles replace every hand).
+- **Winning:** the best hand takes the Pot, and a hand of exactly zero also takes the Sabacc Pot. The ORSL hands rank from Pure Sabacc down to Nulrhek; ☰ > **How to play** has the full list, the tiebreaks and the controls.
+
+The screen is drawn as a starship console for e-ink. Cards follow the Corellian Spike deck, with the number on every card: positive cards are black, negative dark gray. To trade, tap a card, then pick Trade with deck or Trade with discard; every button shows its cost.
+
+Rules adapted from [*Sabacc: Corellian Spike*](https://outerrimsabaccleague.com/wp-content/uploads/2024/04/SabaccCorellianSpikeRules_v1.1.pdf) by Ender Smith (CC-BY-SA 2.0).
+
 ## Disclaimer
 
-This is an unofficial fan project. It is not affiliated with or endorsed by The New York Times, The Atlantic, Amuse Labs, Krillion, Costcodle, FoodGuessr, Teuteuf Games, Less Games, Marveldle or Capitalle. All puzzles, images and game data belong to their owners and are fetched from their public sites each day; nothing is bundled with the plugin. Krillion, More/Less and Marveldle answers are checked by their sites' servers, as in their web games. Please support the original games.
+This is an unofficial fan project. It is not affiliated with or endorsed by The New York Times, The Atlantic, Amuse Labs, Krillion, Costcodle, FoodGuessr, Teuteuf Games, Less Games, Marveldle, Capitalle, Lucasfilm or the Outer Rim Sabacc League. All puzzles, images and game data belong to their owners and are fetched from their public sites each day; nothing is bundled with the plugin. Sabacc is a fan-made game: its cards and screen are drawn by the plugin. Krillion, More/Less and Marveldle answers are checked by their sites' servers, as in their web games. Please support the original games.
 
 ## Feedback
 
