@@ -1,23 +1,32 @@
 --[[
-Sabacc: an offline card game (simplified Corellian Spike rules) against three
-computer players. Unlike the other games it needs no network and is not a
-daily puzzle: you can play as many hands as you like, and credits carry over.
+Sabacc: Corellian Spike, played offline against three computer players.
+Unlike the other games it needs no network and is not a daily puzzle: play as
+many hands as you like; credits and the Sabacc Pot carry over.
 
-Rules
-  Deck: +1..+10 and -1..-10 in three suits (circle, triangle, square), plus two
-  sylops worth 0. A hand totalling exactly 0 is a Sabacc; anything else is a
-  Nulrhek, and the one closest to zero wins (positive beats negative).
-  Each hand: everyone antes, gets two cards, then plays three rounds. In a
-  round you Gain (draw), Swap (take the face-up discard for one of yours),
-  Discard, or Stand; then bet: check, bet 10, or junk (fold). After betting
-  two spike dice roll; doubles cause a Sabacc Shift: every hand is replaced
-  with the same number of new cards.
+Rules: the Outer Rim Sabacc League (ORSL) rules, as given in "Sabacc:
+Corellian Spike" v1.1 by Ender Smith (CC-BY-SA 2.0), page 2, with the ORSL
+winning hands from page 5.
 
-On e-ink: positive cards are black, negative dark gray; 7-10 and sylops are solid face cards.
-The screen is drawn as a starship console: cut-corner panels, monospaced labels.
+  Deck: +1..+10 and -1..-10 three times each, plus two sylops (0); 62 cards.
+  Ante: 20 to the Pot and 10 to the Sabacc Pot. The Pot goes to the winner of
+    the hand; the Sabacc Pot rides until someone wins with a hand of exactly 0.
+  Deal: 2 cards each, top card of the deck face up as the discard pile.
+  Three rounds, each with three phases, starting at the dealer's left:
+    Trading: buy from the deck (10), buy from the discard (20; if the discard
+      pile is empty, the top card of the deck is discarded first), trade from
+      the deck (free: discard one, draw one), trade from the discard (free:
+      take the top discard, discard one), or stand.
+    Betting: the bet starts at 0. Check (if no one has raised), raise, call, or
+      junk (fold: hand to the junk pile and a 10 penalty into the Pot; you must
+      junk if you can't call). It goes round until everyone has matched the bet
+      or junked. If only one player remains, they win at once.
+    Spike: two dice are rolled; on doubles every player discards their hand and
+      is dealt a new hand of the same size.
+  After 3 rounds the best hand wins (see Sabacc.evaluate).
 
-The engine (Sabacc.newTable, Sabacc.act, Sabacc.bet, ...) is plain data so it
-can be saved with Store and tested without the UI.
+The engine is plain data (saved with Store) and is tested without the UI.
+Raises are offered in steps of 10 and 20, and at most three raises are allowed
+per betting phase, so hands keep moving on an e-reader.
 ]]
 
 local UIManager = require("ui/uimanager")
@@ -27,12 +36,19 @@ local UI = require("dailygames/ui")
 
 local Sabacc = {}
 
-local ANTE, RAISE, ROUNDS, MAX_HAND, START = 5, 10, 3, 5, 100
-local SAVE_KEY = "sabacc/table"
+local POT_ANTE, SABACC_ANTE = 20, 10
+local BUY_DECK, BUY_DISCARD = 10, 20
+local JUNK_PENALTY = 10
+local RAISES = { 10, 20 }
+local MAX_RAISES = 3
+local ROUNDS, START = 3, 300
+local SEATS = 4
+local SAVE_KEY = "sabacc/orsl"
 
-Sabacc.ANTE, Sabacc.RAISE, Sabacc.ROUNDS, Sabacc.MAX_HAND = ANTE, RAISE, ROUNDS, MAX_HAND
+Sabacc.POT_ANTE, Sabacc.SABACC_ANTE, Sabacc.BUY_DECK, Sabacc.BUY_DISCARD = POT_ANTE, SABACC_ANTE, BUY_DECK, BUY_DISCARD
+Sabacc.JUNK_PENALTY, Sabacc.RAISES, Sabacc.ROUNDS, Sabacc.START = JUNK_PENALTY, RAISES, ROUNDS, START
 
--- bold: how often a player raises with a strong hand
+-- bold: how readily a player raises
 local ROSTER = {
     { name = "Tal Merrow", title = "Smuggler", bold = 0.65 },
     { name = "K-7 Unit", title = "Droid", bold = 0.35 },
@@ -73,50 +89,114 @@ function Sabacc.cardText(c)
 end
 
 local function cardName(c)
-    return c.v == 0 and "a sylop" or Sabacc.cardText(c)
+    return c.v == 0 and "a sylop" or signed(c.v)
 end
 
---- Ranks a hand. Lower score is better.
--- Returns { sabacc, sum, name, score }.
+-- hands ------------------------------------------------------------------------
+
+local function sortedValues(hand)
+    local vs = {}
+    for _, c in ipairs(hand) do vs[#vs + 1] = c.v end
+    table.sort(vs)
+    return vs
+end
+
+local function exactly(vs, list)
+    if #vs ~= #list then return false end
+    table.sort(list)
+    for i = 1, #vs do if vs[i] ~= list[i] then return false end end
+    return true
+end
+
+--- Ranks a hand under the ORSL winning hands. Returns
+-- { zero, sum, rank, name, key }: lower rank wins, then the lower key
+-- (compared item by item; see Sabacc.compare).
+--   1 Pure Sabacc       two sylops, nothing else
+--   2 Full Sabacc       −10 −10 0 +10 +10
+--   3 Yee-Haa           zero with a pair and a sylop (lowest pair wins)
+--   4 Rhylet            zero, five cards: three of a kind of one sign and a
+--                       pair of the other (lowest three of a kind wins)
+--   5 Straight Staves   +7 −8 −9 +10, or the inverse
+--   6 Squadron          zero with four of a kind (lowest wins)
+--   7 Gee Whiz          +1 +2 +3 +4 −10, or the inverse
+--   8 Straight Khyron   zero, a run of four (lowest run wins)
+--   9 Rule of Two       zero with two pairs (lowest pairs win)
+--  10 Sabacc            zero with one pair (lowest pair wins)
+--  11 Sabacc            any other zero
+--  12 Nulrhek           not zero
+-- "Of a kind", pairs and runs go by a card's number, whatever its sign.
+-- Then the tiebreaks: a Sabacc with most cards, highest positive sum, highest
+-- positive card; a Nulrhek closest to zero, positive sum, most cards, highest
+-- positive sum, highest positive card. Still tied: a blind card draw.
 function Sabacc.evaluate(hand)
-    local sum, n = 0, #hand
-    for _, c in ipairs(hand) do sum = sum + c.v end
-    if sum ~= 0 then
-        return {
-            sabacc = false, sum = sum,
-            name = "Nulrhek " .. signed(sum),
-            score = 20 + math.abs(sum) + (sum < 0 and 0.5 or 0) - n * 0.01,
-        }
-    end
-    local syl, count = 0, {}
+    local n, sum, possum, maxpos, syl = #hand, 0, 0, 0, 0
+    local count, signs = {}, {}
     for _, c in ipairs(hand) do
+        sum = sum + c.v
+        if c.v > 0 then
+            possum = possum + c.v
+            if c.v > maxpos then maxpos = c.v end
+        end
         if c.v == 0 then
             syl = syl + 1
         else
             local a = math.abs(c.v)
             count[a] = (count[a] or 0) + 1
+            signs[a] = signs[a] or {}
+            signs[a][c.v > 0 and "pos" or "neg"] = (signs[a][c.v > 0 and "pos" or "neg"] or 0) + 1
         end
     end
-    local groups = {}
-    for v, k in pairs(count) do groups[#groups + 1] = { v = v, n = k } end
-    table.sort(groups, function(a, b)
-        if a.n ~= b.n then return a.n > b.n end
-        return a.v < b.v
-    end)
-    local top = groups[1]
-    local c1, c2 = top and top.n or 0, groups[2] and groups[2].n or 0
-    local r, name
-    if syl == 2 and n == 2 then r, name = 1, "Pure Sabacc"
-    elseif syl == 1 and n == 5 and top and top.v == 10 and c1 == 4 then r, name = 2, "Full Sabacc"
-    elseif syl >= 1 and c1 == 4 then r, name = 3, "Fleet"
-    elseif syl == 1 and n == 3 and c1 == 2 then r, name = 4, "Yee-Haa"
-    elseif c1 == 3 and c2 == 2 then r, name = 5, "Rhylet"
-    elseif c1 == 4 then r, name = 6, "Squadron"
-    elseif c1 == 3 then r, name = 7, "Banthas Wild"
-    elseif c1 == 2 and c2 == 2 then r, name = 8, "Rule of Two"
-    elseif c1 == 2 then r, name = 9, "Sabacc Pair"
-    else r, name = 10, "Sabacc" end
-    return { sabacc = true, sum = 0, name = name, score = r + (top and top.v or 0) / 100 + n / 1000 }
+    local generic = { -n, -possum, -maxpos }
+    local function result(rank, name, key)
+        key = key or {}
+        if rank <= 11 then
+            for _, k in ipairs(generic) do key[#key + 1] = k end
+        end
+        return { zero = sum == 0, sum = sum, rank = rank, name = name, key = key }
+    end
+    if sum ~= 0 then
+        return result(12, "Nulrhek " .. signed(sum), { math.abs(sum), sum > 0 and 0 or 1, -n, -possum, -maxpos })
+    end
+    local vs = sortedValues(hand)
+    local pairs_, fours, kinds = {}, {}, {}
+    for a, k in pairs(count) do
+        kinds[#kinds + 1] = a
+        if k >= 2 then pairs_[#pairs_ + 1] = a end
+        if k >= 4 then fours[#fours + 1] = a end
+    end
+    table.sort(pairs_); table.sort(fours); table.sort(kinds)
+    if n == 2 and syl == 2 then return result(1, "Pure Sabacc") end
+    if exactly(vs, { -10, -10, 0, 10, 10 }) then return result(2, "Full Sabacc") end
+    if syl >= 1 and #pairs_ >= 1 then return result(3, "Yee-Haa", { pairs_[1] }) end
+    if n == 5 and syl == 0 and #kinds == 2 then
+        for _, a in ipairs(kinds) do
+            local b = kinds[1] == a and kinds[2] or kinds[1]
+            local sa, sb = signs[a], signs[b]
+            if count[a] == 3 and count[b] == 2
+                and ((sa.pos == 3 and sb.neg == 2) or (sa.neg == 3 and sb.pos == 2)) then
+                return result(4, "Rhylet", { a })
+            end
+        end
+    end
+    if exactly(vs, { 7, -8, -9, 10 }) or exactly(vs, { -7, 8, 9, -10 }) then return result(5, "Straight Staves") end
+    if #fours >= 1 then return result(6, "Squadron", { fours[1] }) end
+    if exactly(vs, { 1, 2, 3, 4, -10 }) or exactly(vs, { -1, -2, -3, -4, 10 }) then return result(7, "Gee Whiz") end
+    if n == 4 and syl == 0 and #kinds == 4 and kinds[4] - kinds[1] == 3 then
+        return result(8, "Straight Khyron", { kinds[1] })
+    end
+    if #pairs_ >= 2 then return result(9, "Rule of Two", { pairs_[1], pairs_[2] }) end
+    if #pairs_ == 1 then return result(10, "Sabacc", { pairs_[1] }) end
+    return result(11, "Sabacc")
+end
+
+--- -1 if hand evaluation a beats b, 1 if b beats a, 0 if tied.
+function Sabacc.compare(a, b)
+    if a.rank ~= b.rank then return a.rank < b.rank and -1 or 1 end
+    for i = 1, math.max(#a.key, #b.key) do
+        local x, y = a.key[i] or 0, b.key[i] or 0
+        if x ~= y then return x < y and -1 or 1 end
+    end
+    return 0
 end
 
 -- table state --------------------------------------------------------------------
@@ -131,6 +211,7 @@ local function draw(g)
 end
 
 local function you(g) return g.players[1] end
+local function nextSeat(seat) return seat % SEATS + 1 end
 
 local function active(g)
     local list = {}
@@ -140,173 +221,290 @@ local function active(g)
     return list
 end
 
-local function activeAIs(g)
-    local list = {}
-    for _, p in ipairs(g.players) do
-        if p.ai and not p.out then list[#list + 1] = p end
-    end
-    return list
+function Sabacc.owe(g, p)
+    p = p or you(g)
+    return (g.bet or 0) - (p.paid or 0)
 end
 
 --- A new table; `credits` (optional) is a list of starting credits per seat.
 function Sabacc.newTable(credits)
-    local g = { players = { { name = "You", credits = credits and credits[1] or START } }, hand_no = 0 }
+    local g = { players = { { name = "You", credits = credits and credits[1] or START } },
+        hand_no = 0, sabacc_pot = 0, dealer = SEATS }
     for i, r in ipairs(ROSTER) do
         g.players[i + 1] = { name = r.name, title = r.title, bold = r.bold, ai = true,
             credits = credits and credits[i + 1] or START }
     end
-    Sabacc.newHand(g)
+    Sabacc.newHand(g, true)
     return g
 end
 
-function Sabacc.newHand(g)
+local startTrading, advance
+
+--- Deals a new hand; the dealer button moves one seat to the left.
+function Sabacc.newHand(g, first)
     g.hand_no = g.hand_no + 1
-    g.deck, g.discard = Sabacc.newDeck(), {}
-    g.pot, g.round, g.phase = 0, 1, "act"
-    g.dice, g.winners, g.new = nil, nil, nil
+    if not first then g.dealer = nextSeat(g.dealer) end
+    g.deck, g.discard, g.junk = Sabacc.newDeck(), {}, {}
+    g.pot, g.round, g.dice, g.winners, g.new, g.log = 0, 1, nil, nil, nil, {}
+    g.phase = "busy" -- the engine is running; "trade" / "bet" mean it's your move
     for _, p in ipairs(g.players) do
-        p.out, p.hand, p.last = false, {}, ""
-        if p.ai and p.credits < ANTE + RAISE then
+        p.out, p.hand, p.last, p.paid, p.acted = false, {}, "", 0, false
+        if p.ai and p.credits < POT_ANTE + SABACC_ANTE + 40 then
             p.credits = START
             p.last = "Bought back in."
         end
     end
-    if you(g).credits < ANTE then
+    if you(g).credits < POT_ANTE + SABACC_ANTE then
         g.phase = "broke"
-        g.msg = "You're out of credits. Start a new table to keep playing."
+        g.msg = "You can't cover the ante. Start a new table to keep playing."
         return g
     end
     for _, p in ipairs(g.players) do
-        p.credits = p.credits - ANTE
-        g.pot = g.pot + ANTE
+        p.credits = p.credits - POT_ANTE - SABACC_ANTE
+        g.pot = g.pot + POT_ANTE
+        g.sabacc_pot = g.sabacc_pot + SABACC_ANTE
         p.hand = { draw(g), draw(g) }
     end
     g.discard[#g.discard + 1] = draw(g)
-    g.msg = string.format("Hand %d. Everyone antes %d. Get your hand as close to zero as you can.", g.hand_no, ANTE)
+    local dealer = g.dealer == 1 and "You deal" or (g.players[g.dealer].name .. " deals")
+    g.log = {}
+    g.log[1] = string.format("Hand %d. %s. Everyone antes %d to the Pot and %d to the Sabacc Pot.",
+        g.hand_no, dealer, POT_ANTE, SABACC_ANTE)
+    startTrading(g)
     return g
+end
+
+-- moves (shared by you and the computer players) ---------------------------------
+
+local function takeDiscard(g)
+    if #g.discard == 0 then g.discard[1] = draw(g) end
+    return table.remove(g.discard)
+end
+
+--- Applies a trading move for player p. Returns a description, or nil if the
+-- move isn't allowed. i is the hand card to give up for the two trades.
+local function applyTrade(g, p, kind, i)
+    if kind == "buy_deck" then
+        if p.credits < BUY_DECK then return end
+        p.credits, g.pot = p.credits - BUY_DECK, g.pot + BUY_DECK
+        local c = draw(g)
+        p.hand[#p.hand + 1] = c
+        return "bought from the deck", #p.hand, c
+    elseif kind == "buy_discard" then
+        if p.credits < BUY_DISCARD then return end
+        p.credits, g.pot = p.credits - BUY_DISCARD, g.pot + BUY_DISCARD
+        local c = takeDiscard(g)
+        p.hand[#p.hand + 1] = c
+        return "bought " .. cardName(c) .. " from the discard", #p.hand, c
+    elseif kind == "trade_deck" then
+        if not (i and p.hand[i]) then return end
+        local old = table.remove(p.hand, i)
+        g.discard[#g.discard + 1] = old
+        local c = draw(g)
+        table.insert(p.hand, i, c)
+        return "traded " .. cardName(old) .. " for a card from the deck", i, c
+    elseif kind == "trade_discard" then
+        if not (i and p.hand[i]) then return end
+        local c = takeDiscard(g)
+        local old = p.hand[i]
+        p.hand[i] = c
+        g.discard[#g.discard + 1] = old
+        return "traded " .. cardName(old) .. " for " .. cardName(c) .. " from the discard", i, c
+    elseif kind == "stand" then
+        return "stood"
+    end
+end
+
+local function pay(g, p, amount)
+    p.credits = p.credits - amount
+    p.paid = p.paid + amount
+    g.pot = g.pot + amount
+end
+
+local function junk(g, p)
+    p.out = true
+    for _, c in ipairs(p.hand) do g.junk[#g.junk + 1] = c end
+    p.hand = {}
+    local fee = math.min(JUNK_PENALTY, p.credits)
+    p.credits, g.pot = p.credits - fee, g.pot + fee
+    p.acted = true
+end
+
+--- Applies a betting move for player p ("check", "call", "raise" by amount,
+--- "junk"). Returns a description, or nil if it isn't allowed.
+local function applyBet(g, p, kind, amount)
+    local owe = Sabacc.owe(g, p)
+    if kind == "check" then
+        if owe ~= 0 then return end
+        p.acted = true
+        return "checked"
+    elseif kind == "call" then
+        if owe <= 0 or p.credits < owe then return end
+        pay(g, p, owe)
+        p.acted = true
+        return "called " .. owe
+    elseif kind == "raise" then
+        if not amount or g.raises >= MAX_RAISES or p.credits < owe + amount then return end
+        pay(g, p, owe + amount)
+        g.bet = g.bet + amount
+        g.raises = g.raises + 1
+        for _, q in ipairs(g.players) do q.acted = false end
+        p.acted = true
+        return "raised the bet to " .. g.bet
+    elseif kind == "junk" then
+        junk(g, p)
+        return "junked"
+    end
 end
 
 -- computer players ----------------------------------------------------------------
 
---- 0..1, how good a hand looks.
-local function strength(p)
-    local e = Sabacc.evaluate(p.hand)
-    if e.sabacc then return 1 - (e.score - 1) / 12 * 0.4 end
-    return math.max(0, 0.55 - math.abs(e.sum) * 0.07)
+--- How good a hand looks, 0..1.
+local function strength(hand)
+    local e = Sabacc.evaluate(hand)
+    if e.zero then return 1 - (e.rank - 1) * 0.03 end
+    return math.max(0, 0.6 - math.abs(e.sum) * 0.07 + (e.sum > 0 and 0.02 or 0))
 end
 
-local function aiAct(g, p)
-    local opts = { { k = "stand", s = Sabacc.evaluate(p.hand).score } }
+local function sampleDeck(g, k)
+    local out = {}
+    for _ = 1, k do
+        if #g.deck == 0 then break end
+        out[#out + 1] = g.deck[math.random(#g.deck)]
+    end
+    return out
+end
+
+local function aiTrade(g, p)
+    local opts = { { k = "stand", s = strength(p.hand) } }
     local top = g.discard[#g.discard]
-    if top then
-        for i = 1, #p.hand do
+    local samples = sampleDeck(g, 12)
+    local function avg(fn)
+        if #samples == 0 then return -1 end
+        local t = 0
+        for _, c in ipairs(samples) do t = t + fn(c) end
+        return t / #samples
+    end
+    for i = 1, #p.hand do
+        if top then
             local h = { unpack(p.hand) }
             h[i] = top
-            opts[#opts + 1] = { k = "swap", i = i, s = Sabacc.evaluate(h).score }
+            opts[#opts + 1] = { k = "trade_discard", i = i, s = strength(h) }
         end
-    end
-    if #p.hand > 1 then
-        for i = 1, #p.hand do
-            local h = {}
-            for j, c in ipairs(p.hand) do if j ~= i then h[#h + 1] = c end end
-            opts[#opts + 1] = { k = "discard", i = i, s = Sabacc.evaluate(h).score + 0.3 }
-        end
-    end
-    if #g.deck > 0 then
-        -- expected result of a draw (keeping the best hand after an optional
-        -- drop), from a sample of what's left in the deck
-        local total = 0
-        for _ = 1, 12 do
+        opts[#opts + 1] = { k = "trade_deck", i = i, s = avg(function(c)
             local h = { unpack(p.hand) }
-            h[#h + 1] = g.deck[math.random(#g.deck)]
-            total = total + Sabacc.evaluate(h).score
-        end
-        opts[#opts + 1] = { k = "gain", s = total / 12 - 1.5 }
+            h[i] = c
+            return strength(h)
+        end) }
     end
-    table.sort(opts, function(a, b) return a.s < b.s end)
+    local reserve = 60
+    if #p.hand < 6 then
+        if top and p.credits >= BUY_DISCARD + reserve then
+            local h = { unpack(p.hand) }
+            h[#h + 1] = top
+            opts[#opts + 1] = { k = "buy_discard", s = strength(h) - 0.12 }
+        end
+        if p.credits >= BUY_DECK + reserve then
+            opts[#opts + 1] = { k = "buy_deck", s = avg(function(c)
+                local h = { unpack(p.hand) }
+                h[#h + 1] = c
+                return strength(h)
+            end) - 0.06 }
+        end
+    end
+    table.sort(opts, function(a, b) return a.s > b.s end)
     local o = (math.random() < 0.15 and opts[2]) or opts[1]
-    if o.k == "gain" then
-        p.hand[#p.hand + 1] = draw(g)
-        -- keep it, or drop whichever card leaves the best hand
-        local best, drop = #p.hand <= MAX_HAND and Sabacc.evaluate(p.hand).score or math.huge, nil
-        for i = 1, #p.hand do
-            local h = {}
-            for j, c in ipairs(p.hand) do if j ~= i then h[#h + 1] = c end end
-            local sc = Sabacc.evaluate(h).score + 0.1
-            if sc < best then best, drop = sc, i end
+    local text = applyTrade(g, p, o.k, o.i)
+    p.last = text:sub(1, 1):upper() .. text:sub(2) .. "."
+end
+
+local function aiBet(g, p)
+    local s = strength(p.hand)
+    local owe = Sabacc.owe(g, p)
+    local text
+    if owe == 0 then
+        if g.raises < MAX_RAISES and s > 0.72 and math.random() < p.bold then
+            text = applyBet(g, p, "raise", s > 0.9 and RAISES[2] or RAISES[1])
         end
-        if drop then
-            local c = table.remove(p.hand, drop)
-            g.discard[#g.discard + 1] = c
-            p.last = "Gained a card, dropped " .. cardName(c) .. "."
-        else
-            p.last = "Gained a card."
-        end
-    elseif o.k == "swap" then
-        local c = table.remove(g.discard)
-        g.discard[#g.discard + 1] = p.hand[o.i]
-        p.hand[o.i] = c
-        p.last = "Swapped for " .. cardName(c) .. "."
-    elseif o.k == "discard" then
-        local c = table.remove(p.hand, o.i)
-        g.discard[#g.discard + 1] = c
-        p.last = "Discarded " .. cardName(c) .. "."
+        text = text or applyBet(g, p, "check")
     else
-        p.last = "Stood."
+        local keen = s + math.random() * 0.3 + (g.round < ROUNDS and 0.1 or 0) - owe / 100
+        if p.credits >= owe and keen > 0.45 then
+            if g.raises < MAX_RAISES and s > 0.88 and math.random() < p.bold * 0.5 then
+                text = applyBet(g, p, "raise", RAISES[1])
+            end
+            text = text or applyBet(g, p, "call")
+        end
+        text = text or applyBet(g, p, "junk")
     end
-end
-
-local function aiCalls(g, p)
-    if p.credits < RAISE then return false end
-    return strength(p) + math.random() * 0.35 + (g.round < ROUNDS and 0.12 or 0) > 0.5
-end
-
-local function pay(g, p)
-    p.credits = p.credits - RAISE
-    g.pot = g.pot + RAISE
+    p.last = text:sub(1, 1):upper() .. text:sub(2) .. "."
+    if text == "junked" or text:find("^raised") then g.log[#g.log + 1] = p.name .. " " .. text .. "." end
 end
 
 -- hand flow ------------------------------------------------------------------------
 
-local function award(g, winners, prefix)
-    local share = math.floor(g.pot / #winners)
-    local names, idx = {}, {}
-    -- an odd credit from a split pot goes to the first winner
-    winners[1].credits = winners[1].credits + g.pot - share * #winners
-    for _, w in ipairs(winners) do
-        w.credits = w.credits + share
-        names[#names + 1] = w.ai and w.name or "You"
-        for i, p in ipairs(g.players) do if p == w then idx[#idx + 1] = i end end
+local function award(g, w, how)
+    local seat
+    for i, p in ipairs(g.players) do if p == w then seat = i end end
+    local won = g.pot
+    w.credits = w.credits + g.pot
+    g.pot = 0
+    local e = #w.hand > 0 and Sabacc.evaluate(w.hand) or nil
+    local extra = ""
+    if e and e.zero and g.sabacc_pot > 0 then
+        w.credits = w.credits + g.sabacc_pot
+        extra = string.format(" and the Sabacc Pot of %d", g.sabacc_pot)
+        g.sabacc_pot = 0
     end
-    local contested = #active(g) > 1
-    local solo_you = #winners == 1 and not winners[1].ai
-    g.msg = string.format("%s %s %s %d credits%s.", prefix, table.concat(names, " and "),
-        solo_you and "win" or "wins", share,
-        contested and (" with " .. Sabacc.evaluate(winners[1].hand).name) or "")
-    g.winners = idx -- seat numbers, so the saved table stays plain data
-    g.pot, g.phase = 0, "done"
+    local who = w.ai and w.name or "You"
+    local before = #g.log > 0 and (table.concat(g.log, " ") .. " ") or ""
+    g.log = {}
+    g.msg = before .. string.format("%s %s %s the Pot of %d%s%s.", how, who, w.ai and "wins" or "win", won, extra,
+        e and how:find("Showdown") and (" with " .. e.name) or "")
+    g.winners = { seat }
+    g.phase = "done"
 end
 
-local function showdown(g, prefix)
-    local best, winners = math.huge, {}
+local function showdown(g)
+    local best, tied = nil, {}
     for _, p in ipairs(active(g)) do
-        local s = Sabacc.evaluate(p.hand).score
-        if s < best - 1e-9 then
-            best, winners = s, { p }
-        elseif math.abs(s - best) < 1e-9 then
-            winners[#winners + 1] = p
-        end
+        local e = Sabacc.evaluate(p.hand)
+        local c = best and Sabacc.compare(e, best) or -1
+        if c < 0 then best, tied = e, { p }
+        elseif c == 0 then tied[#tied + 1] = p end
     end
-    award(g, winners, prefix .. " Showdown:")
+    local how = "Showdown:"
+    -- still tied: a single blind card draw, highest card wins
+    local guard = 0
+    while #tied > 1 and guard < 10 do
+        guard = guard + 1
+        local top, next_tied = nil, {}
+        for _, p in ipairs(tied) do
+            local c = draw(g)
+            g.discard[#g.discard + 1] = c
+            if not top or c.v > top then top, next_tied = c.v, { p }
+            elseif c.v == top then next_tied[#next_tied + 1] = p end
+        end
+        tied = next_tied
+        how = "Showdown, settled by a blind card draw:"
+    end
+    award(g, tied[1], how)
 end
 
---- Rolls the spike dice (doubles: Sabacc Shift) and moves to the next round.
-local function rollDice(g, prefix, quiet)
+local function onlyOneLeft(g)
+    local left = active(g)
+    if #left == 1 then
+        award(g, left[1], "Everyone else junked.")
+        return true
+    end
+end
+
+local function spike(g)
     local a, b = math.random(6), math.random(6)
     g.dice = { a, b }
-    local text = string.format("%s Spike dice: %d and %d.", prefix, a, b)
+    local text = string.format("Spike dice: %d and %d.", a, b)
     if a == b then
-        text = text .. " Doubles! Sabacc Shift: every hand is replaced."
+        text = text .. " Doubles: a Sabacc Shift deals everyone a new hand."
         for _, p in ipairs(active(g)) do
             local n = #p.hand
             for _, c in ipairs(p.hand) do g.discard[#g.discard + 1] = c end
@@ -316,153 +514,99 @@ local function rollDice(g, prefix, quiet)
         g.new = nil
     end
     g.round = g.round + 1
-    if quiet then return end
-    if g.round > ROUNDS then return showdown(g, text) end
-    g.phase = "act"
-    g.msg = string.format("%s Round %d of %d.", text, g.round, ROUNDS)
+    g.log[#g.log + 1] = text
+    if g.round > ROUNDS then return showdown(g) end
+    startTrading(g)
 end
 
-local function endBetting(g, prefix)
-    local left = active(g)
-    if #left == 1 then return award(g, left, prefix .. " Everyone else junked.") end
-    rollDice(g, prefix)
+local function startBetting(g)
+    g.stage = "bet"
+    g.bet, g.raises = 0, 0
+    for _, p in ipairs(g.players) do p.paid, p.acted = 0, false end
+    g.cur = nextSeat(g.dealer)
+    advance(g)
 end
 
---- After you junk: the computer players finish the hand on their own.
-local function finishWithoutYou(g)
-    while g.round <= ROUNDS and #active(g) > 1 do
-        for _, p in ipairs(activeAIs(g)) do aiAct(g, p) end
-        rollDice(g, "", true)
-    end
-    local left = active(g)
-    if #left == 1 then return award(g, left, "You junked.") end
-    showdown(g, "You junked.")
+function startTrading(g)
+    g.stage = "trade"
+    g.cur = nextSeat(g.dealer)
+    g.traded = 0
+    advance(g)
 end
 
---- Your move in a round: "gain", "swap" (card i), "discard" (card i) or "stand".
--- The computer players then move. Returns false if the move isn't allowed.
-function Sabacc.act(g, kind, i)
-    local me = you(g)
-    local text
-    if g.phase == "drop" then
-        -- after gaining: keep everything, or drop one card (the new one included)
-        if kind == "keep" then
-            if #me.hand > MAX_HAND then return false end
-            text = "You gain " .. cardName(me.hand[g.new]) .. " and keep it."
-        elseif kind == "drop" then
-            if not (i and me.hand[i]) then return false end
-            local gained = me.hand[g.new]
-            local c = table.remove(me.hand, i)
-            g.discard[#g.discard + 1] = c
-            text = i == g.new and ("You gain " .. cardName(c) .. " and drop it.")
-                or ("You gain " .. cardName(gained) .. " and drop " .. cardName(c) .. ".")
-            g.new = nil
-            for j, card in ipairs(me.hand) do if card == gained then g.new = j end end
+--- Runs the computer players until it's your move (or the hand ends).
+function advance(g)
+    for _ = 1, 200 do
+        if g.phase == "done" or g.phase == "broke" then return end
+        if onlyOneLeft(g) then return end
+        if g.stage == "trade" then
+            if g.traded >= SEATS then return startBetting(g) end
+            local p = g.players[g.cur]
+            if p.out then
+                g.traded, g.cur = g.traded + 1, nextSeat(g.cur)
+            elseif not p.ai then
+                g.phase = "trade"
+                g.log[#g.log + 1] = string.format("Round %d: your trade.", g.round)
+                g.msg = table.concat(g.log, " ")
+                g.log = {}
+                return
+            else
+                aiTrade(g, p)
+                g.traded, g.cur = g.traded + 1, nextSeat(g.cur)
+            end
         else
-            return false
+            local done = true
+            for _, q in ipairs(active(g)) do
+                if not q.acted or q.paid ~= g.bet then done = false end
+            end
+            if done then return spike(g) end
+            local p = g.players[g.cur]
+            if p.out or (p.acted and p.paid == g.bet) then
+                g.cur = nextSeat(g.cur)
+            elseif not p.ai then
+                g.phase = "bet"
+                local owe = Sabacc.owe(g, p)
+                g.log[#g.log + 1] = owe == 0 and string.format("Round %d betting: check, raise or junk.", g.round)
+                    or string.format("The bet is %d; you owe %d.", g.bet, owe)
+                    .. (p.credits < owe and " You can't cover it, so you must junk." or "")
+                g.msg = table.concat(g.log, " ")
+                g.log = {}
+                return
+            else
+                aiBet(g, p)
+                g.cur = nextSeat(g.cur)
+            end
         end
-        return Sabacc.endTurn(g, text)
     end
-    if g.phase ~= "act" then return false end
-    if kind == "gain" then
-        -- draw from the deck; then keep it or drop a card (see the "drop" phase)
-        local c = draw(g)
-        me.hand[#me.hand + 1] = c
-        g.new = #me.hand
-        g.phase = "drop"
-        g.msg = "You draw " .. cardName(c) .. ". Keep it, or tap a card to drop."
-            .. (#me.hand > MAX_HAND and " Your hand is full, so you must drop one." or "")
-        return true
-    elseif kind == "swap" then
-        if not (i and me.hand[i] and #g.discard > 0) then return false end
-        local c = table.remove(g.discard)
-        g.discard[#g.discard + 1] = me.hand[i]
-        me.hand[i] = c
-        g.new = i
-        text = "You take " .. cardName(c) .. " from the discard pile."
-    elseif kind == "discard" then
-        if not (i and me.hand[i] and #me.hand > 1) then return false end
-        local c = table.remove(me.hand, i)
-        g.discard[#g.discard + 1] = c
-        g.new = nil
-        text = "You discard " .. cardName(c) .. "."
-    elseif kind == "stand" then
-        g.new = nil
-        text = "You stand."
-    else
-        return false
-    end
-    return Sabacc.endTurn(g, text)
 end
 
---- Your move is done: the computer players move, then betting starts.
-function Sabacc.endTurn(g, text)
-    you(g).last = text
-    for _, p in ipairs(activeAIs(g)) do aiAct(g, p) end
-    g.phase = "bet"
-    g.msg = text .. " Now bet: check, bet " .. RAISE .. ", or junk your hand."
+--- Your trading move: "buy_deck", "buy_discard", "trade_deck" (card i),
+-- "trade_discard" (card i) or "stand". Returns false if it isn't allowed.
+function Sabacc.trade(g, kind, i)
+    if g.phase ~= "trade" then return false end
+    local me = you(g)
+    local text, at = applyTrade(g, me, kind, i)
+    if not text then return false end
+    me.last = "You " .. text .. "."
+    g.new = at
+    g.log[#g.log + 1] = me.last
+    g.traded, g.cur = g.traded + 1, nextSeat(g.cur)
+    g.phase = "busy"
+    advance(g)
     return true
 end
 
---- Your bet: "check", "bet", "call" (after a raise) or "junk".
-function Sabacc.bet(g, kind)
-    local me = you(g)
-    if kind == "junk" and (g.phase == "bet" or g.phase == "call") then
-        me.out = true
-        finishWithoutYou(g)
-        return true
-    end
-    if kind == "call" and g.phase == "call" then
-        if me.credits < RAISE then return false end
-        pay(g, me)
-        endBetting(g, "You call " .. RAISE .. ".")
-        return true
-    end
+--- Your betting move: "check", "call", "raise" (with amount) or "junk".
+function Sabacc.bet(g, kind, amount)
     if g.phase ~= "bet" then return false end
-    if kind == "bet" then
-        if me.credits < RAISE then return false end
-        pay(g, me)
-        for _, p in ipairs(activeAIs(g)) do
-            if aiCalls(g, p) then
-                pay(g, p)
-                p.last = "Called " .. RAISE .. "."
-            else
-                p.out = true
-                p.last = "Junked."
-            end
-        end
-        endBetting(g, "You bet " .. RAISE .. ".")
-        return true
-    end
-    if kind ~= "check" then return false end
-    -- you check: a computer player with a strong hand may raise
-    local raiser
-    for _, p in ipairs(activeAIs(g)) do
-        p.last = "Checked."
-        if not raiser and p.credits >= RAISE and strength(p) > 0.72 and math.random() < p.bold then
-            raiser = p
-        end
-    end
-    if not raiser then
-        endBetting(g, "Everyone checks.")
-        return true
-    end
-    pay(g, raiser)
-    raiser.last = "Raised " .. RAISE .. "."
-    for _, p in ipairs(activeAIs(g)) do
-        if p ~= raiser then
-            if aiCalls(g, p) then
-                pay(g, p)
-                p.last = "Called " .. RAISE .. "."
-            else
-                p.out = true
-                p.last = "Junked."
-            end
-        end
-    end
-    g.phase = "call"
-    g.msg = string.format("%s raises %d. Call or junk?", raiser.name, RAISE)
-        .. (me.credits < RAISE and " You can't cover it, so junk." or "")
+    local me = you(g)
+    local text = applyBet(g, me, kind, amount)
+    if not text then return false end
+    me.last = "You " .. text .. "."
+    g.log[#g.log + 1] = me.last
+    g.cur = nextSeat(g.cur)
+    g.phase = "busy"
+    advance(g)
     return true
 end
 
@@ -743,6 +887,7 @@ end
 -- screen ------------------------------------------------------------------------------
 
 -- The whole screen is drawn here, header and buttons included.
+local SHOWN = 5 -- cards that fit side by side; larger hands overlap
 local Screen = UI.Board:extend {}
 
 function Screen:setup()
@@ -766,13 +911,13 @@ function Screen:setup()
     self.lift = math.floor(self.hand_h * 0.08)
     local ch = math.floor((self.hand_h - self.lift) * 0.88)
     local cw = math.floor(ch * 0.7)
-    local max_w = math.floor((W - 2 * self.pad - gap * (MAX_HAND - 1)) / MAX_HAND)
+    local max_w = math.floor((W - 2 * self.pad - gap * (SHOWN - 1)) / SHOWN)
     if cw > max_w then cw = max_w; ch = math.floor(cw / 0.7) end
     self.card_w, self.card_h, self.card_gap = cw, ch, gap
 
     self.opp_w = math.floor((W - 2 * self.pad - 2 * self.pad) / 3)
     local inner = self.opp_w - 2 * self.pad
-    self.mini_w = math.floor(inner / (MAX_HAND + (MAX_HAND - 1) * 0.1))
+    self.mini_w = math.floor(inner / (SHOWN + (SHOWN - 1) * 0.1))
     self.mini_h = math.floor(self.mini_w * 1.42)
 
     self.pile_h = math.floor(self.tab_h * 0.62)
@@ -786,9 +931,9 @@ function Screen:setup()
     self.face_name = UI.fitFace({ "TAL MERROW", "OLD JESSA" }, inner, self.opp_h * 0.1, monob)
     self.face_small = UI.fitFace({ "DISCARDED A SYLOP", "CANTINA OWNER" }, inner, self.opp_h * 0.075, mono)
     self.face_label = UI.fitFace({ "SPIKE DICE", "DISCARD" }, self.pile_w * 1.5, self.tab_h * 0.075, mono)
-    self.face_pot = UI.fitFace({ "999" }, self.pile_w * 0.8, self.pile_h * 0.24, monob)
     self.face_msg = UI.fitFace({ "Everyone checks. Spike dice: 2 and 3." }, W * 0.8, self.msg_h * 0.3)
     self.face_foot = UI.fitFace({ "BANTHAS WILD" }, W * 0.32, self.foot_h * 0.42, monob)
+    self.face_tag = UI.fitFace({ "DEALER" }, W * 0.12, self.opp_h * 0.07, { font = MONO, bold = true })
     self.face_foot_small = UI.fitFace({ "TAP A CARD", "CREDITS 999" }, W * 0.26, self.foot_h * 0.36, mono)
     self.faces_card = { num = UI.fitFace({ "+10", "−10" }, cw * 0.5, ch * 0.11 * 0.82, { font = MONO, bold = true }) }
     self.faces_pile = { num = UI.fitFace({ "+10", "−10" }, self.pile_w * 0.5, self.pile_h * 0.11 * 0.82, { font = MONO, bold = true }) }
@@ -855,11 +1000,12 @@ function Screen:drawOpponent(bb, p, seat, bx, by, bw, bh)
     local sh = math.floor(bh * 0.2)
     fillPoly(bb, cutPts(bx, by, bw, sh, c), p.out and UI.LIGHT or UI.BLACK)
     UI.drawTextLeft(bb, self.face_name, p.name:upper(), bx + c + math.floor(u * 0.6), by, sh, UI.WHITE, true)
+    if g.dealer == seat then self:dealerTag(bb, bx + bw - pad, by, sh) end
     if win then
         -- winner: whole panel inverted, with a rule under the name and a star
         bb:paintRect(bx + c, by + sh - math.max(2, math.floor(u * 0.3)), bw - 2 * c, math.max(2, math.floor(u * 0.3)), UI.WHITE)
         local sw = UI.measure(self.face_name, "★")
-        UI.drawTextLeft(bb, self.face_name, "★", bx + bw - pad - sw, by, sh, UI.WHITE, true)
+        UI.drawTextLeft(bb, self.face_name, "★", bx + bw - pad - sw - (g.dealer == seat and math.floor(5 * u) or 0), by, sh, UI.WHITE, true)
     end
     local ix = bx + pad
     local ly = by + sh + math.floor(bh * 0.04)
@@ -867,6 +1013,7 @@ function Screen:drawOpponent(bb, p, seat, bx, by, bw, bh)
     UI.drawTextLeft(bb, self.face_small, p.credits .. " CR", ix, ly, lh, fg, true)
     local cy = ly + lh + math.floor(bh * 0.03)
     local step = math.floor(self.mini_w * 1.1)
+    if #p.hand > SHOWN then step = math.floor((bw - 2 * pad - self.mini_w) / (#p.hand - 1)) end
     for j, card in ipairs(p.hand) do
         local cx = ix + (j - 1) * step
         if reveal then
@@ -883,6 +1030,18 @@ function Screen:drawOpponent(bb, p, seat, bx, by, bw, bh)
     local sy = cy + self.mini_h + math.floor(bh * 0.02)
     local f, lines = UI.fitLines(st:upper(), bw - 2 * pad, math.floor(bh * 0.09), 1, { font = MONO })
     UI.drawTextLeft(bb, f, lines[1], ix, sy, by + bh - sy - math.floor(bh * 0.03), fg, reveal)
+end
+
+--- A small "DEALER" tag, right-aligned at rx (or left-aligned when right is false).
+function Screen:dealerTag(bb, rx, y, h, inverted, left)
+    local f = self.face_tag
+    local label = "DEALER"
+    local tw = UI.measure(f, label) + math.floor(2 * self.u)
+    local th = math.floor(h * 0.6)
+    local tx = left and rx or rx - tw
+    local ty = y + math.floor((h - th) / 2)
+    fillPoly(bb, cutPts(tx, ty, tw, th, math.floor(th * 0.3)), inverted and UI.BLACK or UI.WHITE)
+    UI.drawText(bb, f, label, tx, ty, tw, th, inverted and UI.WHITE or UI.BLACK, true)
 end
 
 function Screen:drawTable(bb, x, y)
@@ -931,8 +1090,10 @@ function Screen:drawTable(bb, x, y)
     end
     UI.fillCircle(bb, cx, cy, math.floor(r * 0.68), UI.WHITE)
     UI.ringCircle(bb, cx, cy, math.floor(r * 0.6), math.max(2, math.floor(r * 0.05)), UI.BLACK)
-    UI.drawText(bb, self.face_pot, tostring(g.pot), cx - r, cy - math.floor(r * 0.42), 2 * r, math.floor(r * 0.6), UI.BLACK, true)
+    local pf = UI.fitFace({ tostring(g.pot), "88" }, r * 1.0, r * 0.5, { font = MONO, bold = true })
+    UI.drawText(bb, pf, tostring(g.pot), cx - r, cy - math.floor(r * 0.42), 2 * r, math.floor(r * 0.6), UI.BLACK, true)
     UI.drawText(bb, self.face_label, "POT", cx - r, cy + math.floor(r * 0.12), 2 * r, math.floor(r * 0.3), UI.DARK)
+    UI.drawText(bb, self.face_label, "SABACC POT " .. g.sabacc_pot, cx - 3 * r, top + self.pile_h, 6 * r, label_h, UI.BLACK, true)
 end
 
 function Screen:drawMessage(bb, x, y)
@@ -942,8 +1103,8 @@ function Screen:drawMessage(bb, x, y)
     local x0, x1, y0, y1 = x + pad, x + W - pad, y + math.floor(h * 0.1), y + h - math.floor(h * 0.1)
     bb:paintRect(x0, y0, bl, bt, UI.BLACK); bb:paintRect(x0, y0, bt, bl, UI.BLACK)
     bb:paintRect(x1 - bl, y1 - bt, bl, bt, UI.BLACK); bb:paintRect(x1 - bt, y1 - bl, bt, bl, UI.BLACK)
-    local f, lines = UI.fitLines(g.msg or "", W - 2 * pad - 6 * u, math.floor(h * 0.66), 2)
-    local lh = math.floor(h * 0.66 / 2)
+    local f, lines = UI.fitLines(g.msg or "", W - 2 * pad - 6 * u, math.floor(h * 0.8), 3)
+    local lh = math.floor(h * 0.8 / math.max(2, #lines))
     local start = y + math.floor((h - lh * #lines) / 2)
     for li, l in ipairs(lines) do
         UI.drawText(bb, f, l, x, start + (li - 1) * lh, W, lh, UI.BLACK)
@@ -959,7 +1120,9 @@ function Screen:drawHand(bb, x, y)
         return
     end
     local n = #me.hand
-    local total = n * self.card_w + (n - 1) * self.card_gap
+    local step = self.card_w + self.card_gap
+    if n > SHOWN then step = math.floor((W - 2 * self.pad - self.card_w) / (n - 1)) end
+    local total = (n - 1) * step + self.card_w
     local cx = x + math.floor((W - total) / 2)
     local base = y + self.lift + math.floor((self.hand_h - self.lift - self.card_h) / 2)
     for i, c in ipairs(me.hand) do
@@ -975,8 +1138,10 @@ function Screen:drawHand(bb, x, y)
             fillPoly(bb, { { cx + self.card_w / 2 - mw / 2, base + self.card_h + self.u }, { cx + self.card_w / 2 + mw / 2, base + self.card_h + self.u },
                 { cx + self.card_w / 2, base + self.card_h + 2.4 * self.u } }, UI.BLACK)
         end
-        self.hits[#self.hits + 1] = { x = cx - self.x0, y = y - self.y0, w = self.card_w, h = self.hand_h, card = i }
-        cx = cx + self.card_w + self.card_gap
+        -- overlapped cards are tapped on their visible strip
+        local hw = i < n and math.min(step, self.card_w) or self.card_w
+        self.hits[#self.hits + 1] = { x = cx - self.x0, y = y - self.y0, w = hw, h = self.hand_h, card = i }
+        cx = cx + step
     end
 end
 
@@ -992,8 +1157,14 @@ function Screen:drawFooter(bb, x, y)
     local ny, nh = y + math.floor(h * 0.14), math.floor(h * 0.72)
     fillPoly(bb, cutPts(nx, ny, nw, nh, math.floor(nh * 0.35)), UI.BLACK)
     UI.drawText(bb, self.face_foot, name, nx, ny, nw, nh, UI.WHITE, true)
-    if g.phase == "act" or g.phase == "drop" then
-        local hint = self.app.sel and "CARD PICKED" or (g.phase == "drop" and "TAP TO DROP" or "TAP A CARD")
+    if g.dealer == 1 then self:dealerTag(bb, x + pad + UI.measure(self.face_foot_small, me.credits .. " CR") + math.floor(2 * u), y, h, true, true) end
+    local hint
+    if g.phase == "trade" then hint = self.app.sel and "PICK HOW TO TRADE" or "TAP A CARD TO TRADE"
+    elseif g.phase == "bet" then
+        local owe = Sabacc.owe(g)
+        hint = owe > 0 and ("YOU OWE " .. owe) or (g.bet > 0 and ("BET " .. g.bet) or "NO BET YET")
+    end
+    if hint then
         local tw = UI.measure(self.face_foot_small, hint)
         UI.drawTextLeft(bb, self.face_foot_small, hint, x + W - pad - tw, y, h, UI.DARK)
     end
@@ -1017,9 +1188,18 @@ function Screen:drawButtons(bb, x, y)
         else
             panel(bb, bx, y, bw, h, c, t, UI.BLACK, UI.WHITE)
         end
-        local f = UI.fitFace({ b.text:upper() }, bw * 0.84, h * 0.34, { font = MONO, bold = true })
-        UI.drawText(bb, f, b.text:upper(), bx, y, bw, h,
-            not enabled and UI.LIGHT or (b.primary and UI.WHITE or UI.BLACK), true)
+        local fg = not enabled and UI.LIGHT or (b.primary and UI.WHITE or UI.BLACK)
+        local label = b.text:upper()
+        if b.sub then
+            local f = UI.fitFace({ label }, bw * 0.84, h * 0.28, { font = MONO, bold = true })
+            UI.drawText(bb, f, label, bx, y + math.floor(h * 0.12), bw, math.floor(h * 0.46), fg, true)
+            local fs = UI.fitFace({ b.sub:upper() }, bw * 0.8, h * 0.2, { font = MONO })
+            UI.drawText(bb, fs, b.sub:upper(), bx, y + math.floor(h * 0.56), bw, math.floor(h * 0.3),
+                not enabled and UI.LIGHT or (b.primary and UI.LIGHT or UI.DARK))
+        else
+            local f = UI.fitFace({ label }, bw * 0.84, h * 0.34, { font = MONO, bold = true })
+            UI.drawText(bb, f, label, bx, y, bw, h, fg, true)
+        end
         if enabled then
             self.hits[#self.hits + 1] = { x = bx - self.x0, y = y - self.y0, w = bw, h = h, button = b }
         end
@@ -1060,21 +1240,41 @@ end
 
 -- app ---------------------------------------------------------------------------------
 
-local HELP = [[Get your hand to exactly zero.
+local HELP = [[Corellian Spike, Outer Rim Sabacc League rules.
 
-The deck has +1 to +10 and -1 to -10 in three suits, plus two sylops worth 0. Each card shows its number in the top band and one dot per point in the bottom band. Cards 1 to 6 show that many suit symbols (circles, triangles or squares); 7 to 10 are solid face cards with an ornate design. Positive cards are black, negative cards dark gray. The sylop is a black card with a ringed hexagon.
+Goal: the best hand after three rounds, as close to zero as you can.
 
-Each hand has three rounds. In a round you can:
-• Gain: draw from the deck, then keep it or drop any one card (the new one too). A full hand of 5 must drop one.
-• Take discard: tap one of your cards, then take the face-up discard in its place
-• Discard: tap a card and drop it
-• Stand: keep your hand
+Cards: +1 to +10 and −1 to −10 (three of each) and two sylops worth 0. The number is in the top band, with one dot per point in the bottom band. Positive cards are black, negative dark gray. 7 to 10 are solid face cards; the sylop has a ringed hexagon.
 
-Then bet: check, bet 10 or junk (fold). Two spike dice roll after betting. On doubles, a Sabacc Shift replaces every hand with new cards.
+Each hand everyone antes 20 to the Pot and 10 to the Sabacc Pot and gets 2 cards. The dealer moves one seat each hand; play starts at the dealer's left.
 
-A hand totalling zero is a Sabacc. Best first: Pure Sabacc (two sylops), Full Sabacc (+10 +10 -10 -10 and a sylop), Fleet (four of a kind and a sylop), Yee-Haa (pair and a sylop), Rhylet (three of a kind and a pair), Squadron (four of a kind), Banthas Wild (three of a kind), Rule of Two (two pairs), Sabacc Pair (like +5 -5), any other Sabacc.
+Each round:
+1. Trading. Do one:
+• Buy deck (10): add the top card of the deck to your hand.
+• Buy discard (20): add the face-up discard to your hand.
+• Trade: tap one of your cards first, then Trade with deck or Trade with discard (free) to swap it.
+• Stand.
+2. Betting: Check, Raise, Call or Junk. Junking folds your hand and costs 10. Betting goes round until everyone has matched the bet.
+3. Spike dice: on doubles every hand is replaced with new cards.
 
-Otherwise the hand closest to zero wins, positive beating negative. The winner takes the pot.]]
+After round 3 the best hand takes the Pot. If it totals exactly zero it also takes the Sabacc Pot; otherwise the Sabacc Pot rides to the next hand. See ☰ > Winning hands.]]
+
+local HANDS = [[Winning hands, best first (Outer Rim Sabacc League):
+
+1. Pure Sabacc: 0 0
+2. Full Sabacc: −10 −10 0 +10 +10
+3. Yee-Haa: zero with a pair and a sylop
+4. Rhylet: zero with three of a kind of one sign and a pair of the other
+5. Straight Staves: +7 −8 −9 +10, or the inverse
+6. Squadron: zero with four of a kind
+7. Gee Whiz: +1 +2 +3 +4 −10, or the inverse
+8. Straight Khyron: zero with a run of four
+9. Rule of Two: zero with two pairs
+10. Sabacc: zero with one pair
+11. Any other zero (Sabacc)
+12. Nulrhek: not zero; closest to zero wins
+
+Pairs, kinds and runs go by number, whatever the sign. In a tie, lower pairs and runs win. Then: Sabacc with most cards, highest positive sum, highest positive card. Nulrhek: closest to zero, positive sum, most cards, highest positive sum, highest positive card. Still tied: a blind card draw.]]
 
 local App = UI.FullscreenApp:extend {
     name = "sabacc_app",
@@ -1085,7 +1285,8 @@ local App = UI.FullscreenApp:extend {
 function App:setup()
     if not self.game then
         local saved = Store.get(SAVE_KEY)
-        if type(saved) == "table" and type(saved.players) == "table" and #saved.players == #ROSTER + 1 then
+        if type(saved) == "table" and type(saved.players) == "table" and #saved.players == #ROSTER + 1
+                and saved.sabacc_pot then
             self.game = saved
         else
             self.game = Sabacc.newTable()
@@ -1099,21 +1300,21 @@ function App:save()
 end
 
 function App:pick(i)
-    if self.game.phase ~= "act" and self.game.phase ~= "drop" then return end
+    if self.game.phase ~= "trade" then return end
     self.sel = self.sel ~= i and i or nil
     self:refresh()
 end
 
-function App:doAct(kind)
-    if Sabacc.act(self.game, kind, self.sel) then
+function App:doTrade(kind)
+    if Sabacc.trade(self.game, kind, self.sel) then
         self.sel = nil
         self:save()
     end
     self:refresh()
 end
 
-function App:doBet(kind)
-    if Sabacc.bet(self.game, kind) then self:save() end
+function App:doBet(kind, amount)
+    if Sabacc.bet(self.game, kind, amount) then self:save() end
     self:refresh()
 end
 
@@ -1125,31 +1326,40 @@ function App:newTable()
     UIManager:setDirty(self, function() return "full", self.dimen end)
 end
 
+--- Buttons for the current moment. `sub` is a small second line (costs).
 function App:buttonRow()
     local g, me = self.game, self.game.players[1]
-    if g.phase == "act" then
+    if g.phase == "trade" then
+        if self.sel then
+            return {
+                { text = "Trade with deck", sub = "free", primary = true, callback = function() self:doTrade("trade_deck") end },
+                { text = "Trade with discard", sub = "free", callback = function() self:doTrade("trade_discard") end },
+                { text = "Cancel", callback = function() self:pick(self.sel) end },
+            }
+        end
         return {
-            { text = "Gain", callback = function() self:doAct("gain") end },
-            { text = "Take discard", enabled = self.sel ~= nil and #g.discard > 0, callback = function() self:doAct("swap") end },
-            { text = "Discard", enabled = self.sel ~= nil and #me.hand > 1, callback = function() self:doAct("discard") end },
-            { text = "Stand", primary = true, callback = function() self:doAct("stand") end },
-        }
-    elseif g.phase == "drop" then
-        return {
-            { text = "Keep", primary = true, enabled = #me.hand <= MAX_HAND, callback = function() self:doAct("keep") end },
-            { text = "Drop", enabled = self.sel ~= nil, callback = function() self:doAct("drop") end },
+            { text = "Buy deck", sub = BUY_DECK .. " cr", enabled = me.credits >= BUY_DECK,
+                callback = function() self:doTrade("buy_deck") end },
+            { text = "Buy discard", sub = BUY_DISCARD .. " cr", enabled = me.credits >= BUY_DISCARD,
+                callback = function() self:doTrade("buy_discard") end },
+            { text = "Stand", primary = true, callback = function() self:doTrade("stand") end },
         }
     elseif g.phase == "bet" then
-        return {
-            { text = "Check", primary = true, callback = function() self:doBet("check") end },
-            { text = "Bet " .. RAISE, enabled = me.credits >= RAISE, callback = function() self:doBet("bet") end },
-            { text = "Junk", callback = function() self:doBet("junk") end },
-        }
-    elseif g.phase == "call" then
-        return {
-            { text = "Call " .. RAISE, primary = true, enabled = me.credits >= RAISE, callback = function() self:doBet("call") end },
-            { text = "Junk", callback = function() self:doBet("junk") end },
-        }
+        local owe = Sabacc.owe(g)
+        local row = {}
+        if owe == 0 then
+            row[1] = { text = "Check", primary = true, callback = function() self:doBet("check") end }
+        else
+            row[1] = { text = "Call " .. owe, primary = true, enabled = me.credits >= owe,
+                callback = function() self:doBet("call") end }
+        end
+        for _, r in ipairs(RAISES) do
+            row[#row + 1] = { text = "Raise " .. r, sub = "bet to " .. (g.bet + r),
+                enabled = g.raises < MAX_RAISES and me.credits >= owe + r,
+                callback = function() self:doBet("raise", r) end }
+        end
+        row[#row + 1] = { text = "Junk", sub = "fold · " .. JUNK_PENALTY .. " cr", callback = function() self:doBet("junk") end }
+        return row
     elseif g.phase == "done" then
         return { { text = "Next hand", primary = true, callback = function()
             Sabacc.newHand(g)
@@ -1169,7 +1379,10 @@ function App:rebuild()
 end
 
 function App:menuItems()
-    return { { text = "New table (reset credits)", callback = function() self:newTable() end } }
+    return {
+        { text = "Winning hands", callback = function() UI.error(HANDS) end },
+        { text = "New table (reset credits)", callback = function() self:newTable() end },
+    }
 end
 
 function Sabacc.launch()

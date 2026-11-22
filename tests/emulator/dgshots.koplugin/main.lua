@@ -235,11 +235,11 @@ local STEPS = {
     function() shot("costcodle_guesses") end,
     function() closeAllGames() end,
 
-    -- Sabacc (offline): start, pick a card, then gain and check
+    -- Sabacc (offline): start, pick a card, then trade it for the discard
     function() mod("sabacc").launch() end,
     function() local app = top(); app:pick(1) end,
     function() shot("sabacc_start") end,
-    function() local app = top(); app:doAct("gain"); app:doBet("check") end,
+    function() local app = top(); app:doTrade("trade_discard") end,
     function() shot("sabacc_round2") end,
     function() closeAllGames() end,
 

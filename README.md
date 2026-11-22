@@ -55,7 +55,7 @@ Endless games are saved separately, so they never touch today's puzzle or its âœ
 | More/Less | lessgames.com | Which of two things has more searches, streams, rating or price? |
 | Marveldle | marveldle.com | Guess the MCU character from attribute clues. |
 | Brandle | capitalle.app | Guess the brand from a blurred logo, with industry, country, founding year and revenue hints. |
-| Sabacc | built in | Card game against three computer players: get your hand to zero. Works offline; play as many hands as you like. |
+| Sabacc | built in | Corellian Spike (Outer Rim Sabacc League rules) against three computer players: get your hand to zero. Works offline; play as many hands as you like. |
 
 On e-ink, colours become shades: black means right, gray means partly right, and white or faded means wrong. Each game's **How to play** explains its marks.
 
