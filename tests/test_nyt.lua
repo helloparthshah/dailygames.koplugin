@@ -45,7 +45,8 @@ STORE["progress/wordle"] = { date = "2000-01-01", state = { guesses = { "CRANE" 
 plug:onDailyGamesWordle(); assert(#top().state.guesses == 0, "yesterday's game is not loaded"); top():onClose()
 -- WORDLE ENDLESS: random past NYT Wordle, own slot, resumes
 local W = require("dailygames/wordle")
-for _ = 1, 50 do local pd = W.randomPastDate("2021-06-21"); assert(pd == "2021-06-19" or pd == "2021-06-20", pd) end
+local Arch = require("dailygames/archive")
+for _ = 1, 50 do local pd = Arch.randomDate("2021-06-19", "2021-06-21"); assert(pd == "2021-06-19" or pd == "2021-06-20", pd) end
 for k in pairs(ROUTES) do if k:find("/wordle/v2/", 1, true) and k ~= N.."/wordle/v2/"..d..".json" then ROUTES[k] = nil end end
 local wroutes = setmetatable({}, { __index = function() return function() return { solution = "slate", days_since_launch = 42 }, 200 end end })
 local real_req = package.loaded["dailygames/http"].getJson
@@ -143,6 +144,32 @@ app:onClose(); assert(STORE["progress/crossword_mini"].date=="2026-11-22")
 ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and o.headers.Cookie=="NYT-S=abc"); return {body={body}, publicationDate="2026-11-22"}, 200 end
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
+-- NYT ENDLESS (Connections, Strands, crosswords): past dates, own slots
+do
+    local real = package.loaded["dailygames/http"].getJson
+    local asked = {}
+    package.loaded["dailygames/http"].getJson = function(url, h)
+        local ck = url:match("/crosswords/v6/puzzle/(%a+)/%d%d%d%d%-%d%d%-%d%d%.json$")
+        if ck then asked[#asked + 1] = url; return real(N .. "/crosswords/v6/puzzle/" .. ck .. ".json", { Cookie = "NYT-S=abc" }) end
+        local kind, date = url:match("/svc/(%a+)/v%d/.-(%d%d%d%d%-%d%d%-%d%d)%.json$")
+        if kind and date ~= d then
+            asked[#asked + 1] = url
+            return real((url:gsub("%d%d%d%d%-%d%d%-%d%d", d)), h)
+        end
+        return real(url, h)
+    end
+    for _, ev in ipairs { "ConnectionsEndless", "StrandsEndless", "MiniEndless" } do
+        local before = {}
+        for k, v in pairs(STORE) do before[k] = v end
+        plug["onDailyGames" .. ev](plug); local g = top()
+        assert(g.on_next and g.date ~= d and g.date < d, ev .. " " .. tostring(g.date) .. " " .. tostring(g._name) .. " " .. tostring(g.text) .. " " .. tostring(LOG[#LOG]))
+        assert(asked[#asked]:find(g.date, 1, true), asked[#asked])
+        g:onClose()
+        for k, v in pairs(before) do assert(STORE[k] == v or k:find("_endless"), ev .. " touched " .. k) end
+    end
+    assert(STORE["progress/crossword_mini_endless"], "crossword endless saved on close")
+    package.loaded["dailygames/http"].getJson = real
+end
 -- HUB: ticks for finished games, "…" for started ones
 local function hubLabel(id)
     plug:onDailyGamesHub(); local hub = top()

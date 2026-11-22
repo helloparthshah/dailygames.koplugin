@@ -13,6 +13,7 @@ local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
 local Amuse = require("dailygames/amuse")
+local Archive = require("dailygames/archive")
 local NYT = require("dailygames/nyt")
 local Store = require("dailygames/store")
 local UI = require("dailygames/ui")
@@ -429,11 +430,13 @@ local function show(kind, data, state, on_next)
 end
 
 --- kind: "mini" / "daily" (NYT) or "atlantic" (Amuse Labs).
-function Crossword.launch(kind, cookie)
-    local data, err = UI.withBusy("Loading crossword…", function()
+-- opts (NYT endless mode): { date, state, on_next }.
+function Crossword.launch(kind, cookie, opts)
+    local data, err, crash = UI.withBusy("Loading crossword…", function()
         if kind == "atlantic" then return Amuse.latest("atlantic", "atlantic") end
-        return NYT.crossword(kind, cookie)
+        return NYT.crossword(kind, cookie, opts and opts.date)
     end)
+    err = err or crash
     if not data then
         local hint = kind == "daily"
             and "\n\nIf this keeps failing, the daily puzzle may need an NYT subscription: set your NYT-S cookie in Tools > Daily Games."
@@ -441,7 +444,22 @@ function Crossword.launch(kind, cookie)
         UI.error("Couldn't load the crossword.\n" .. tostring(err) .. hint)
         return
     end
+    if opts then
+        data.date = opts.date or data.date
+        return show(kind, data, opts.state, opts.on_next)
+    end
     show(kind, data, Store.loadProgress("crossword_" .. kind, data.date))
+end
+
+-- First puzzles in the open NYT archive used for endless mode.
+local FIRST = { mini = "2014-08-21", daily = "2000-01-01" }
+
+--- Endless: a random past NYT Mini or Daily crossword.
+function Crossword.launchNYTEndless(kind, cookie, today)
+    Archive.play("crossword_" .. kind, FIRST[kind], today, function(date, opts)
+        opts.date = date
+        Crossword.launch(kind, cookie, opts)
+    end)
 end
 
 --- Endless: a random puzzle from The Atlantic's free recent ones (the date
