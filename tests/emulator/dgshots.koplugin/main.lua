@@ -193,6 +193,18 @@ local STEPS = {
     function() shot("wheretaken_bonus") end,
     function() closeAllGames() end,
 
+    -- FoodGuessr Cuisine Match and Plate-Off (answers are checked locally)
+    function() mod("foodmodes").launchCuisineMatch() end,
+    function() shot("cuisinematch_start") end,
+    function() local app = top(); local r = app.rounds[1]; app:pick(((r.correctFoodIndex + 1) % 3) + 1) end,
+    function() shot("cuisinematch_second") end,
+    function() closeAllGames() end,
+    function() mod("foodmodes").launchPlateOff() end,
+    function() shot("plateoff_start") end,
+    function() top():pick("left") end,
+    function() shot("plateoff_result") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,
