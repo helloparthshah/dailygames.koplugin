@@ -144,14 +144,15 @@ end
 
 --- Splits text into at most two balanced lines for width w (no split if it fits).
 function UI.wrap2(f, text, w, bold)
-    if measure(f, text, bold) <= w then return { text } end
+    if (measure(f, text, bold)) <= w then return { text } end
     local best
     for i = 1, #text do
         local ch = text:sub(i, i)
         if ch == " " or ch == "-" or ch == "/" then
             local a = text:sub(1, i):gsub("%s+$", "")
             local b = text:sub(i + 1):gsub("^%s+", "")
-            local worst = math.max(measure(f, a, bold), measure(f, b, bold))
+            -- parentheses keep only the width (measure returns w, h, metrics)
+            local worst = math.max((measure(f, a, bold)), (measure(f, b, bold)))
             if not best or worst < best.worst then best = { a, b, worst = worst } end
         end
     end

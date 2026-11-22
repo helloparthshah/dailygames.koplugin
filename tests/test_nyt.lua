@@ -27,13 +27,13 @@ plug:onDailyGamesWordle(); assert(top():isWon()); top():onClose()
 
 -- CONNECTIONS
 local cats = {}
-local words = {{"A1","A2","A3","A4"},{"B1","B2","B3","B4"},{"C1","C2","C3","C4"},{"D1","D2","D3","D4"}}
+local words = {{"A1","A2","A3","LONG WORD THAT MUST WRAP"},{"B1","B2","B3","B4"},{"C1","C2","C3","C4"},{"D1","D2","D3","D4"}}
 local pos = 0
 for i, ws in ipairs(words) do local cards = {}; for _, w in ipairs(ws) do cards[#cards+1]={content=w, position=(pos*7)%16}; pos=pos+1 end; cats[i]={title="T"..i, cards=cards} end
 ROUTES[N.."/connections/v2/"..d..".json"] = function() return {categories=cats, id=5}, 200 end
 plug:onDailyGamesConnections(); app = top(); assert(app._name=="connections_app")
 assert(#app.state.remaining==16)
-for _,w in ipairs{"A1","A2","A3","A4"} do app:toggle(w) end
+for _,w in ipairs{"A1","A2","A3","LONG WORD THAT MUST WRAP"} do app:toggle(w) end
 press(app, "Submit (4/4)"); assert(#app.state.solved==1 and #app.state.remaining==12)
 for _,w in ipairs{"B1","B2","B3","C1"} do app:toggle(w) end; press(app, "Submit (4/4)")
 assert(app.state.mistakes==1 and app.status=="One away…", app.status)
