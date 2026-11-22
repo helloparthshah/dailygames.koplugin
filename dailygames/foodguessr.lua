@@ -23,6 +23,8 @@ local REGIONS = require("dailygames/data_foodguessr_regions")
 
 local MAX_GUESSES = 5
 local TODAY_URL = "https://www.foodguessr.com/api/trpc/daily.today?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D"
+-- Quick Play (the site's free play mode): input {"numberOfRounds":5}
+local RANDOM_URL = "https://www.foodguessr.com/api/trpc/food.randomGame?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22numberOfRounds%22%3A5%7D%7D%7D"
 local IMAGE_URL = "https://r2.foodguessr.com/f/ir/%s/800w.webp"
 
 local NAME = {}
@@ -277,7 +279,7 @@ function App:onKey(k)
 end
 
 function App:save()
-    Store.saveProgress("foodguessr", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
 end
 
 function App:guess(code)
@@ -355,16 +357,18 @@ local function parseRounds(today, cache)
     return rounds
 end
 
-function FoodGuessr.launch()
+-- Fetches a game (url) and its photos. normalize(json) -> { rounds = { { food } }, date, v2Distances }
+local function load(url, normalize)
     local cache = DataStorage:getDataDir() .. "/cache"
-    local result, err = UI.withBusy("Loading FoodGuessr…", function()
-        local data, e = Http.getJson(TODAY_URL)
+    return UI.withBusy("Loading FoodGuessr…", function()
+        local data, e = Http.getJson(url)
         if not data then return nil, e end
-        local today = data[1] and data[1].result and data[1].result.data and data[1].result.data.json
-        if type(today) ~= "table" or type(today.rounds) ~= "table" then return nil, "unexpected data" end
+        local json = data[1] and data[1].result and data[1].result.data and data[1].result.data.json
+        local game = type(json) == "table" and normalize(json)
+        if type(game) ~= "table" or type(game.rounds) ~= "table" then return nil, "unexpected data" end
         os.execute("mkdir -p '" .. cache .. "'")
-        local rounds = parseRounds(today, cache)
-        -- keep only today's photos
+        local rounds = parseRounds(game, cache)
+        -- keep only this game's photos
         local keep = {}
         for _, r in ipairs(rounds) do if r.image_path then keep[r.image_path] = true end end
         local ok, lfs = pcall(require, "libs/libkoreader-lfs")
@@ -374,18 +378,41 @@ function FoodGuessr.launch()
                 if name:match("^foodguessr%-") and not keep[path] then os.remove(path) end
             end
         end
-        return { today = today, rounds = rounds }
+        return { game = game, rounds = rounds }
     end)
-    if not result then
-        UI.error("Couldn't load FoodGuessr.\n" .. tostring(err))
-        return
-    end
-    local date = tostring(result.today.date or os.date("!%Y-%m-%d")):sub(1, 10)
+end
+
+local function distances(game)
+    return game.v2Distances and game.v2Distances.pairs or {}
+end
+
+function FoodGuessr.launch()
+    local result, err, crash = load(TODAY_URL, function(j) return j end)
+    if not result then return UI.error("Couldn't load FoodGuessr.\n" .. tostring(err or crash)) end
+    local date = tostring(result.game.date or os.date("!%Y-%m-%d")):sub(1, 10)
     UIManager:show(App:new {
         date = date,
         rounds = result.rounds,
-        pairs = result.today.v2Distances and result.today.v2Distances.pairs or {},
+        pairs = distances(result.game),
         state = Store.loadProgress("foodguessr", date),
+    })
+end
+
+--- Endless: the site's Quick Play (food.randomGame), five random dishes.
+function FoodGuessr.launchEndless()
+    local result, err, crash = load(RANDOM_URL, function(j)
+        if type(j.foods) ~= "table" then return nil end
+        local rounds = {}
+        for i, food in ipairs(j.foods) do rounds[i] = { food = food } end
+        return { rounds = rounds, v2Distances = j.v2Distances }
+    end)
+    if not result then return UI.error("Couldn't load FoodGuessr.\n" .. tostring(err or crash)) end
+    Store.clearProgress("foodguessr_endless")
+    UIManager:show(App:new {
+        date = "random-" .. os.time(),
+        rounds = result.rounds,
+        pairs = distances(result.game),
+        on_next = FoodGuessr.launchEndless,
     })
 end
 

@@ -46,7 +46,8 @@ end
 
 -- id is used for Dispatcher action names; event is the handler name suffix.
 local GAMES = {
-    { id = "wordle", event = "Wordle", text = _("Wordle"), launch = function() Wordle.launch(today()) end },
+    { id = "wordle", event = "Wordle", text = _("Wordle"), launch = function() Wordle.launch(today()) end,
+      endless = function() Wordle.launchEndless(today()) end },
     { id = "connections", event = "Connections", text = _("Connections"),
       launch = function() Connections.launch(today()) end },
     { id = "strands", event = "Strands", text = _("Strands"), launch = function() Strands.launch(today()) end },
@@ -57,7 +58,8 @@ local GAMES = {
     { id = "atlantic", event = "Atlantic", text = _("The Atlantic Crossword"),
       launch = function() Crossword.launch("atlantic") end,
       endless = function() Crossword.launchAtlanticEndless() end },
-    { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end },
+    { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end,
+      endless = function() FoodGuessr.launchEndless() end },
     { id = "cuisinematch", event = "CuisineMatch", text = _("FoodGuessr: Cuisine Match"),
       launch = function() FoodModes.launchCuisineMatch() end,
       endless = function() FoodModes.launchCuisineMatchEndless() end },
