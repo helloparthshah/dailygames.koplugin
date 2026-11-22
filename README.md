@@ -12,7 +12,8 @@ Restart KOReader afterwards. Remove any older NYT Games plugin folder so you don
 ## Open
 
 - **Tools > Daily Games**: hub, each game, Krillion options, NYT-S cookie.
-- Gestures / ZenOS launcher: actions **Daily Games hub** and **Daily Games: <game>** (General section).
+- **ZenOS App Launcher:** "Daily Games" is added automatically the first time KOReader starts with the plugin (ZenPM installs are added by ZenOS itself). Remove it from the launcher and it stays removed.
+- Gestures: actions **Daily Games hub** and **Daily Games: <game>** (General section).
 
 Progress for each game is saved per day, so you can leave and come back.
 
@@ -41,6 +42,7 @@ dailygames/connections.lua
 dailygames/strands.lua
 dailygames/crossword.lua
 dailygames/krillion.lua
+dailygames/zenos.lua      ZenOS App Launcher entry
 ```
 
 To add a game: create `dailygames/<game>.lua` with a `launch()` function (subclass `UI.FullscreenApp` for a full-screen board) and add an entry to `GAMES` in `main.lua`.

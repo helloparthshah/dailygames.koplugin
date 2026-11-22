@@ -1,5 +1,5 @@
 package.path = PLUGDIR .. "/?.lua;" .. package.path
-for _, f in ipairs{"main","_meta","dailygames/http","dailygames/store","dailygames/ui","dailygames/nyt","dailygames/wordle","dailygames/connections","dailygames/strands","dailygames/crossword","dailygames/krillion"} do assert(loadfile(PLUGDIR.."/"..f..".lua")) end
+for _, f in ipairs{"main","_meta","dailygames/http","dailygames/store","dailygames/ui","dailygames/nyt","dailygames/wordle","dailygames/connections","dailygames/strands","dailygames/crossword","dailygames/krillion","dailygames/zenos"} do assert(loadfile(PLUGDIR.."/"..f..".lua")) end
 local last
 package.loaded["json"] = {encode=function(t) return "{json}" end, decode=function(s) return {ok=true} end}
 package.loaded["ltn12"] = {sink={table=function(t) return function(c) if c then t[#t+1]=c end return 1 end end}, source={string=function(s) return s end}}
