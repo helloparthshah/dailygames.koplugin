@@ -218,6 +218,9 @@ function Logo:setup()
     local src = img._bb
     if not src then img:free() return end
     local sw, sh = src:getWidth(), src:getHeight()
+    -- only some buffer types carry alpha (FFI structs error on unknown fields)
+    local t = src:getType()
+    local has_alpha = t == Blitbuffer.TYPE_BBRGB32 or t == Blitbuffer.TYPE_BB8A
     local cells = blur <= 1 and math.max(sw, sh) or math.max(3, math.floor(96 / (blur * 1.15)))
     local cell = math.max(1, math.ceil(math.max(sw, sh) / cells))
     local bb = Blitbuffer.new(sw, sh, Blitbuffer.TYPE_BB8)
@@ -227,7 +230,7 @@ function Logo:setup()
             local px, py = math.min(sw - 1, cx + math.floor(cell / 2)), math.min(sh - 1, cy + math.floor(cell / 2))
             local c = src:getPixel(px, py)
             local gray = c:getColor8().a
-            local alpha = c.alpha or 255
+            local alpha = has_alpha and c.alpha or 255
             gray = math.floor((gray * alpha + 255 * (255 - alpha)) / 255)
             bb:paintRect(cx, cy, math.min(cell, sw - cx), math.min(cell, sh - cy), Blitbuffer.Color8(gray))
         end
