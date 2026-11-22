@@ -21,7 +21,6 @@ local DataStorage = require("datastorage")
 local ImageWidget = require("ui/widget/imagewidget")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
-local JSON = require("json")
 
 local Http = require("dailygames/http")
 local Store = require("dailygames/store")
@@ -118,8 +117,7 @@ local function cachedJson(name)
     end
     local raw = readFile(path)
     if not raw then return nil end
-    local dok, data = pcall(JSON.decode, raw)
-    return dok and data or nil
+    return Http.decode(raw)
 end
 
 local function image(path_on_cdn, local_name)
