@@ -13,7 +13,6 @@ POST https://api.lessgames.com/moreless/guess
 
 local ButtonTable = require("ui/widget/buttontable")
 local DataStorage = require("datastorage")
-local ImageWidget = require("ui/widget/imagewidget")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 local JSON = require("json")
@@ -125,7 +124,7 @@ local function card(app, item, width, height, stat, mark, on_tap)
     local img_h = math.max(UI.px(60), height - text_h)
     local path = app:imagePath(item)
     if path then
-        table.insert(inner, ImageWidget:new { file = path, width = width, height = img_h, scale_factor = 0 })
+        table.insert(inner, UI.photo(path, width, img_h))
     end
     table.insert(inner, UI.span(4))
     table.insert(inner, title)

@@ -18,7 +18,6 @@ percentage = floor(100 - 100 * km / 21000)).
 
 local ButtonTable = require("ui/widget/buttontable")
 local DataStorage = require("datastorage")
-local ImageWidget = require("ui/widget/imagewidget")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
@@ -240,7 +239,7 @@ function App:save()
 end
 
 local function photo(path, w, h)
-    if path then return ImageWidget:new { file = path, width = w, height = h, scale_factor = 0 } end
+    if path then return UI.photo(path, w, h) end
     return UI.text("(photo unavailable)", w)
 end
 

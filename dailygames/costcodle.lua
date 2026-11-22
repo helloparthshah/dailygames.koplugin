@@ -13,7 +13,6 @@ day -> product mapping follow its scripts/main.js and scripts/daily-ids.js.
 ]]
 
 local DataStorage = require("datastorage")
-local ImageWidget = require("ui/widget/imagewidget")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
@@ -174,12 +173,7 @@ function App:buildBody(width, height)
     local img_h = math.max(UI.px(80), height - fixed)
     local top = VerticalGroup:new { align = "center" }
     if self.image_path then
-        table.insert(top, ImageWidget:new {
-            file = self.image_path,
-            width = w,
-            height = img_h,
-            scale_factor = 0, -- fit inside, keep aspect ratio
-        })
+        table.insert(top, UI.photo(self.image_path, w, img_h))
     else
         table.insert(top, UI.text("(no photo)", w))
     end

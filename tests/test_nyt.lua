@@ -308,7 +308,17 @@ ROUTES[FM.url("cuisineMatch.today")] = function()
     } } } } } }, 200 end
 plug:onDailyGamesCuisineMatch(); app = top(); assert(app._name == "cuisinematch_app", tostring(app._name))
 app:pick(1); assert(app.status == "One more chance!" and not app:result(1).done)
+-- long country lists are cut in captions
+local many = { name = "Sharbat", countries = {} }
+for i = 1, 25 do many.countries[i] = { name = "C" .. i } end
+app.rounds[1].foods[3] = many
 app:pick(2); assert(app:result(1).points == 2000)
+local texts = {}
+local function collect(w) if type(w) ~= "table" then return end if w._name == "TextBoxWidget" and w.text then texts[#texts + 1] = w.text end for _, c in ipairs(w) do collect(c) end end
+collect(app)
+local found = false
+for _, t in ipairs(texts) do if t:find("Sharbat · C1, C2, C3 +22 more", 1, true) then found = true end end
+assert(found, "caption cut to 3 countries: " .. table.concat(texts, " | "))
 app:advance(); app:pick(1); assert(app:result(2).points == 5000 and app:score() == 7000)
 app:advance(); assert(app:isOver()); app:onClose()
 ROUTES[FM.url("plateOff.today")] = function()

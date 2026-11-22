@@ -200,6 +200,10 @@ local STEPS = {
     function() shot("cuisinematch_start") end,
     function() local app = top(); local r = app.rounds[1]; app:pick(((r.correctFoodIndex + 1) % 3) + 1) end,
     function() shot("cuisinematch_second") end,
+    -- night mode (inverted screen): photos must not get bright bars beside them
+    function() Screen:toggleNightMode(); UIManager:setDirty("all", "full") end,
+    function() shot("cuisinematch_night") end,
+    function() Screen:toggleNightMode(); UIManager:setDirty("all", "full") end,
     function() closeAllGames() end,
     function() mod("foodmodes").launchPlateOff() end,
     function() shot("plateoff_start") end,
