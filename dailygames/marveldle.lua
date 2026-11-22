@@ -45,9 +45,10 @@ local function urlencode(s)
     return (tostring(s):gsub("[^%w%-_%.~]", function(c) return string.format("%%%02X", c:byte()) end))
 end
 
+--- Display text for an attribute: lists joined, "GuardiansOfTheGalaxy" -> "Guardians Of The Galaxy".
 local function valueText(v)
-    if type(v) == "table" then return table.concat(v, ", ") end
-    return tostring(v or "")
+    local s = type(v) == "table" and table.concat(v, ", ") or tostring(v or "")
+    return (s:gsub("(%l)(%u)", "%1 %2"))
 end
 
 --- Characters whose name or a keyword starts with the typed text.
@@ -91,7 +92,7 @@ function Table:setup()
     self.cols = #COLUMNS + 1
     self.gap = UI.px(3)
     self.head_h = UI.px(34)
-    self.row_h = UI.px(64)
+    self.row_h = UI.px(80)
     self.rows = math.max(1, math.floor((self.height - self.head_h) / (self.row_h + self.gap)))
     self.cell_w = math.floor((self.width - self.gap * (self.cols - 1)) / self.cols)
     self.head_face = UI.fitFace({ "Seen in" }, self.cell_w * 0.95, self.head_h * 0.6, { bold = true })
@@ -119,11 +120,13 @@ function Table:draw(bb, x, y)
             local st = CELL[cell.sim] or CELL.None
             bb:paintRect(cx, ry, self.cell_w, self.row_h, st.bg)
             UI.drawBorder(bb, cx, ry, self.cell_w, self.row_h, UI.px(2), UI.BLACK)
-            local lines = UI.wrap2(self.face, cell.text, self.cell_w * 0.92)
-            local lh = math.floor(self.row_h / 3)
+            -- up to three lines, shrinking the font so long value lists fit the cell
+            local f, lines = UI.fitLines(cell.text, self.cell_w * 0.9, self.row_h * 0.86, 3, { bold = i == 1, min = 7 })
+            local lh = math.floor(self.row_h * 0.86 / math.max(#lines, 1))
+            lh = math.min(lh, math.floor(self.row_h / 2.4))
             local top = ry + math.floor((self.row_h - lh * #lines) / 2)
             for li, line in ipairs(lines) do
-                UI.drawText(bb, self.face, line, cx, top + (li - 1) * lh, self.cell_w, lh, st.fg, i == 1)
+                UI.drawText(bb, f, line, cx, top + (li - 1) * lh, self.cell_w, lh, st.fg, i == 1)
             end
         end
     end
