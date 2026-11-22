@@ -26,6 +26,7 @@ local Costcodle = require("dailygames/costcodle")
 local Crossword = require("dailygames/crossword")
 local FoodGuessr = require("dailygames/foodguessr")
 local Krillion = require("dailygames/krillion")
+local Marveldle = require("dailygames/marveldle")
 local MoreLess = require("dailygames/moreless")
 local Store = require("dailygames/store")
 local Strands = require("dailygames/strands")
@@ -55,6 +56,7 @@ local GAMES = {
       launch = function() Crossword.launch("atlantic") end },
     { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end },
     { id = "moreless", event = "MoreLess", text = _("More/Less"), launch = function() MoreLess.launch() end },
+    { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), launch = function() Marveldle.launch() end },
     { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end },
     -- Krillion stays last (it has its own submenu).
     { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },

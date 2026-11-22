@@ -122,7 +122,7 @@ ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==11); hub.buttons[11][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==12); hub.buttons[12][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
@@ -189,4 +189,38 @@ for c = 0, 4 do for r = (c == 0 and 2 or 1), 5 do app:pick(r % 2 == 0 and "right
 assert(app:isOver() and guesses == 25, "all rounds played: " .. guesses)
 print("moreless score:", app:score())
 app:onClose()
+-- MARVELDLE
+local MV = require("dailygames/marveldle")
+local A = "https://api.marveldle.com/api"
+local chars = {
+    { id = "thor", name = "Thor", keywords = { "god of thunder" }, gender = "Male", type = "Hero", species = { "Asgardian" },
+      powerTypes = { "Superhuman" }, origin = "Asgard", affiliations = { "Avengers" }, appearanceTypes = { "Movie" } },
+    { id = "loki", name = "Loki", keywords = {}, gender = "Male", type = "Villain", species = { "Frost Giant" },
+      powerTypes = { "Magic" }, origin = "Jotunheim", affiliations = { "None" }, appearanceTypes = { "Movie", "Series" } },
+    { id = "tonystark", name = "Tony Stark", keywords = { "iron man" }, gender = "Male", type = "Hero", species = { "Human" },
+      powerTypes = { "Technology" }, origin = "Earth", affiliations = { "Avengers" }, appearanceTypes = { "Movie" } },
+}
+assert(MV.suggest(chars, "sta")[1].id == "tonystark", "word in name")
+assert(MV.suggest(chars, "iron")[1].id == "tonystark", "keyword")
+ROUTES[A .. "/config/pick-id"] = function(o) assert(o.raw); return "11/22/2026 12:00:00 AM", 200 end
+ROUTES[A .. "/session"] = function() return { id = "sess-1" }, 200 end
+ROUTES[A .. "/characters/audiovisual"] = function(o) assert(o.headers.sessionId == "sess-1"); return chars, 200 end
+ROUTES[A .. "/characters/audiovisual/guess/loki?dateId=11%2F22%2F2026%2012%3A00%3A00%20AM"] = function()
+    return { gender = "Exact", type = "None", species = "None", powerTypes = "None", origin = "None", affiliations = "None",
+             appearanceTypes = "Partial", id = "None", isExact = false }, 200 end
+ROUTES[A .. "/characters/audiovisual/guess/thor?dateId=11%2F22%2F2026%2012%3A00%3A00%20AM"] = function()
+    return { gender = "Exact", type = "Exact", species = "Exact", powerTypes = "Exact", origin = "Exact", affiliations = "Exact",
+             appearanceTypes = "Exact", id = "Exact", isExact = true }, 200 end
+plug:onDailyGamesMarveldle(); app = top(); assert(app._name == "marveldle_app" and app.date == "2026-11-22", tostring(app.date))
+assert(STORE["marveldle/session"] == "sess-1")
+for _, k in ipairs { "L", "O" } do app:onKey(k) end; assert(app.input == "lo")
+app:guess(chars[2]); assert(#app.state.guesses == 1 and not app.state.won and app.input == "")
+for i = 1, 4 do app.state.guesses[#app.state.guesses + 1] = { id = "loki", sim = {} } end
+ROUTES[A .. "/characters/audiovisual/clue/1?dateId=11%2F22%2F2026%2012%3A00%3A00%20AM&language=en"] = function(o)
+    assert(o.raw); return '<span>"Brother!"</span>', 200 end
+app:showClues(); assert(top().text:find('Quote: "Brother!"', 1, true), top().text); UIManager_close_top = top()
+for i = 1, 4 do table.remove(app.state.guesses) end
+app:guess(chars[1]); assert(app.state.won and app.status:find("Thor"), app.status)
+app:onClose()
+plug:onDailyGamesMarveldle(); assert(top().state.won, "progress restored"); top():onClose()
 print("ALL NYT TESTS PASSED")

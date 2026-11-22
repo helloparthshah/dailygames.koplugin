@@ -178,6 +178,12 @@ local STEPS = {
     function() shot("moreless_start") end,
     function() closeAllGames() end,
 
+    -- Marveldle (type only, no guesses sent)
+    function() mod("marveldle").launch() end,
+    function() local app = top(); for _, k in ipairs { "T", "H" } do app:onKey(k) end end,
+    function() shot("marveldle_typed") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,
