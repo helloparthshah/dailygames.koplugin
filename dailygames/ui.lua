@@ -106,25 +106,35 @@ local function measure(f, text, bold)
 end
 
 --- Largest face such that every string in `samples` fits w x h.
+-- opts: bold, min, caps (single capitals: only cap height must fit, so the
+-- face can be much larger than the box height suggests).
+-- Results are cached: boards rebuild on every tap.
+local fit_cache = {}
 function UI.fitFace(samples, w, h, opts)
     opts = opts or {}
+    w, h = math.floor(w), math.floor(h)
+    local key = table.concat(samples, "\1") .. "|" .. w .. "|" .. h .. "|"
+        .. tostring(opts.bold) .. tostring(opts.caps) .. tostring(opts.min)
+    if fit_cache[key] then return fit_cache[key] end
     local bold = opts.bold
-    local size = math.max(6, math.floor(h / Screen:scaleBySize(1) * (opts.fill or 0.9)))
+    local scale = math.max(0.5, Screen:scaleBySize(100) / 100)
+    local size = math.max(6, math.floor(h / scale * (opts.caps and 1.8 or 1.1)))
     local min = opts.min or 6
+    local found
     while size > min do
         local f = face(size)
         local ok = true
         for _, s in ipairs(samples) do
             local tw, th, m = measure(f, s, bold)
-            -- caps: single capital letters only need cap height, not the full
-            -- line height (which leaves room for accents and descenders)
             if opts.caps then th = m.y_top * 0.75 end
             if tw > w or th > h then ok = false; break end
         end
-        if ok then return f end
+        if ok then found = f; break end
         size = size - 1
     end
-    return face(min)
+    found = found or face(min)
+    fit_cache[key] = found
+    return found
 end
 
 UI.measure = measure
@@ -316,7 +326,7 @@ function Keyboard:setup()
             x = x + w + self.gap
         end
     end
-    self.face = UI.fitFace({ "W", "M", "Q" }, unit * 0.7, self.row_h * 0.42, { bold = true, caps = true })
+    self.face = UI.fitFace({ "W", "M", "Q" }, unit * 0.65, self.row_h * 0.45, { bold = true, caps = true })
     local long = {}
     for _, k in ipairs(self.keys) do
         if #k.label > 1 then table.insert(long, k) end
