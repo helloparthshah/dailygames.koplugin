@@ -43,6 +43,24 @@ app:onClose()
 -- a saved game from another day is ignored
 STORE["progress/wordle"] = { date = "2000-01-01", state = { guesses = { "CRANE" }, current = "" } }
 plug:onDailyGamesWordle(); assert(#top().state.guesses == 0, "yesterday's game is not loaded"); top():onClose()
+-- WORDLE ENDLESS: random past NYT Wordle, own slot, resumes
+local W = require("dailygames/wordle")
+for _ = 1, 50 do local pd = W.randomPastDate("2021-06-21"); assert(pd == "2021-06-19" or pd == "2021-06-20", pd) end
+for k in pairs(ROUTES) do if k:find("/wordle/v2/", 1, true) and k ~= N.."/wordle/v2/"..d..".json" then ROUTES[k] = nil end end
+local wroutes = setmetatable({}, { __index = function() return function() return { solution = "slate", days_since_launch = 42 }, 200 end end })
+local real_req = package.loaded["dailygames/http"].getJson
+package.loaded["dailygames/http"].getJson = function(url, h)
+    if url:find("/wordle/v2/", 1, true) and url ~= N.."/wordle/v2/"..d..".json" then return wroutes[url]() end
+    return real_req(url, h)
+end
+local wdaily = STORE["progress/wordle"]
+plug:onDailyGamesWordleEndless(); app = top()
+assert(app.on_next and app.solution == "SLATE" and app.date < d, tostring(app.date))
+for ch in ("CRANE"):gmatch(".") do app:onKey(ch) end; app:onKey("ENTER")
+local wdate = app.date
+assert(STORE["progress/wordle_endless"].date == wdate and STORE["progress/wordle"] == wdaily); app:onClose()
+plug:onDailyGamesWordleEndless(); app = top(); assert(app.date == wdate and #app.state.guesses == 1, "resumed"); app:onClose()
+package.loaded["dailygames/http"].getJson = real_req
 
 -- CONNECTIONS
 local cats = {}
@@ -211,6 +229,16 @@ assert(F.roundScore(app.rounds[1], app.pairs, { "CL" }) == 5000)
 app:nextRound(); assert(app.state.round == 2)
 app:onClose()
 plug:onDailyGamesFoodGuessr(); assert(top().state.round == 2, "progress restored"); top():onClose()
+-- FOODGUESSR ENDLESS (Quick Play: food.randomGame)
+ROUTES["https://www.foodguessr.com/api/trpc/food.randomGame?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22numberOfRounds%22%3A5%7D%7D%7D"] = function()
+    return { { result = { data = { json = { v2Distances = { pairs = pairsT }, foods = {
+        { name = "Taco", countriesV2 = { { countryCode = "MX", name = "Mexico" } } },
+        { name = "Cuchufli", countriesV2 = { { countryCode = "CL", name = "Chile" } } } } } } } } }, 200
+end
+local fg_daily = STORE["progress/foodguessr"]
+plug:onDailyGamesFoodGuessrEndless(); app = top()
+assert(app._name == "foodguessr_app" and app.on_next and #app.rounds == 2 and app.rounds[1].name == "Taco")
+app:guess("MX"); assert(app:roundOver(1) and STORE["progress/foodguessr"] == fg_daily); app:onClose()
 -- MORE/LESS
 local ML = require("dailygames/moreless")
 assert(ML.dayNumber("2026-11-21") == 450)

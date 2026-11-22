@@ -196,7 +196,7 @@ end
 function Wordle:progressKey() return "wordle" end
 
 function Wordle:save()
-    Store.saveProgress("wordle", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
 end
 
 function Wordle:onKey(key)
@@ -238,6 +238,40 @@ function Wordle.launch(date)
         number = data.number,
         solution = data.solution,
         state = Store.loadProgress("wordle", date),
+    })
+end
+
+local FIRST_WORDLE = os.time { year = 2021, month = 6, day = 19, hour = 12 }
+
+--- A random earlier day's date ("YYYY-MM-DD"), from the first Wordle to yesterday.
+function Wordle.randomPastDate(today)
+    local y, m, d = today:match("^(%d+)-(%d+)-(%d+)$")
+    local t = os.time { year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12 }
+    local days = math.floor((t - FIRST_WORDLE) / 86400 + 0.5)
+    return os.date("%Y-%m-%d", FIRST_WORDLE + math.random(0, math.max(0, days - 1)) * 86400)
+end
+
+--- Endless: a random past NYT Wordle. An unfinished one is resumed.
+function Wordle.launchEndless(today)
+    local saved = Store.get("progress/wordle_endless")
+    local date = type(saved) == "table" and type(saved.state) == "table" and not saved.state.done
+        and saved.date or nil
+    local state = date and saved.state or nil
+    if not date then
+        math.randomseed(os.time())
+        date = Wordle.randomPastDate(today)
+    end
+    local data, err, crash = UI.withBusy("Loading Wordle…", function() return NYT.wordle(date) end)
+    if not data then return UI.error("Couldn't load Wordle.\n" .. tostring(err or crash)) end
+    UIManager:show(Wordle:new {
+        date = date,
+        number = data.number,
+        solution = data.solution,
+        state = state,
+        on_next = function()
+            Store.clearProgress("wordle_endless")
+            Wordle.launchEndless(today)
+        end,
     })
 end
 
