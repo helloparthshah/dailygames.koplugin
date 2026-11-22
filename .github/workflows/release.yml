@@ -1,0 +1,29 @@
+name: Release
+
+# Push a tag like v1.0.0 to publish dailygames.koplugin.zip as a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LuaJIT
+        run: sudo apt-get update && sudo apt-get install -y luajit
+      - name: Run tests
+        run: for t in tests/test_*.lua; do luajit tests/run.lua "$t"; done
+      - name: Build zip
+        run: |
+          mkdir -p build/dailygames.koplugin
+          cp -r _meta.lua main.lua dailygames README.md build/dailygames.koplugin/
+          cd build && zip -r ../dailygames.koplugin.zip dailygames.koplugin
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dailygames.koplugin.zip
+          generate_release_notes: true

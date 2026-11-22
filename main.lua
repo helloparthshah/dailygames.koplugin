@@ -1,0 +1,178 @@
+--[[
+Daily Games for KOReader: NYT Wordle, Connections, Strands, Mini and Daily
+Crossword, plus Krillion.
+
+Entry points:
+  * Main menu: Tools > Daily Games
+  * Dispatcher actions (gestures, ZenOS launcher): "Daily Games hub" and one per game
+
+Each game lives in dailygames/<game>.lua and exposes launch(...).
+]]
+
+local ButtonDialog = require("ui/widget/buttondialog")
+local Dispatcher = require("dispatcher")
+local InputDialog = require("ui/widget/inputdialog")
+local NetworkMgr = require("ui/network/manager")
+local UIManager = require("ui/uimanager")
+local WidgetContainer = require("ui/widget/container/widgetcontainer")
+local _ = require("gettext")
+
+-- Plugin-local modules must be required at load time (KOReader only adds the
+-- plugin folder to package.path while loading main.lua).
+local Connections = require("dailygames/connections")
+local Crossword = require("dailygames/crossword")
+local Krillion = require("dailygames/krillion")
+local Store = require("dailygames/store")
+local Strands = require("dailygames/strands")
+local UI = require("dailygames/ui")
+local Wordle = require("dailygames/wordle")
+
+local function today()
+    return os.date("%Y-%m-%d")
+end
+
+local function nytCookie()
+    return Store.get("nyt_s_cookie", "")
+end
+
+-- id is used for Dispatcher action names; event is the handler name suffix.
+local GAMES = {
+    { id = "wordle", event = "Wordle", text = _("Wordle"), launch = function() Wordle.launch(today()) end },
+    { id = "connections", event = "Connections", text = _("Connections"),
+      launch = function() Connections.launch(today()) end },
+    { id = "strands", event = "Strands", text = _("Strands"), launch = function() Strands.launch(today()) end },
+    { id = "mini", event = "Mini", text = _("The Mini Crossword"),
+      launch = function() Crossword.launch("mini", nytCookie()) end },
+    { id = "crossword", event = "Crossword", text = _("Daily Crossword"),
+      launch = function() Crossword.launch("daily", nytCookie()) end },
+    { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },
+}
+
+local KRILLION = GAMES[#GAMES]
+
+local DailyGames = WidgetContainer:extend {
+    name = "dailygames",
+    is_doc_only = false,
+}
+
+function DailyGames:init()
+    math.randomseed(os.time() + math.floor((os.clock() * 1e6) % 1e6))
+    self:onDispatcherRegisterActions()
+    self.ui.menu:registerToMainMenu(self)
+end
+
+function DailyGames:onDispatcherRegisterActions()
+    Dispatcher:registerAction("dailygames_hub", {
+        category = "none",
+        event = "DailyGamesHub",
+        title = _("Daily Games hub"),
+        general = true,
+    })
+    for __, game in ipairs(GAMES) do
+        Dispatcher:registerAction("dailygames_" .. game.id, {
+            category = "none",
+            event = "DailyGames" .. game.event,
+            title = _("Daily Games: ") .. game.text,
+            general = true,
+        })
+    end
+end
+
+--- Launches a game once Wi-Fi is up.
+function DailyGames:launch(game)
+    NetworkMgr:runWhenOnline(game.launch)
+end
+
+function DailyGames:onDailyGamesHub()
+    self:showHub()
+    return true
+end
+
+for __, game in ipairs(GAMES) do
+    DailyGames["onDailyGames" .. game.event] = function(self)
+        self:launch(game)
+        return true
+    end
+end
+
+function DailyGames:showHub()
+    local dialog
+    local buttons = {}
+    for __, game in ipairs(GAMES) do
+        table.insert(buttons, { {
+            text = game.text,
+            callback = function()
+                UIManager:close(dialog)
+                self:launch(game)
+            end,
+        } })
+    end
+    table.insert(buttons, { { text = _("Close"), callback = function() UIManager:close(dialog) end } })
+    dialog = ButtonDialog:new { title = _("Daily Games") .. " · " .. today(), buttons = buttons }
+    UIManager:show(dialog)
+end
+
+function DailyGames:editNytCookie()
+    local dialog
+    dialog = InputDialog:new {
+        title = _("NYT-S cookie"),
+        description = _("Needed only for the Daily Crossword (NYT subscription). Copy the value of the NYT-S cookie from a browser where you're logged in to nytimes.com."),
+        input = nytCookie(),
+        buttons = { {
+            { text = _("Cancel"), id = "close", callback = function() UIManager:close(dialog) end },
+            { text = _("Clear"), callback = function()
+                Store.set("nyt_s_cookie", nil)
+                UIManager:close(dialog)
+            end },
+            { text = _("Save"), is_enter_default = true, callback = function()
+                Store.set("nyt_s_cookie", (dialog:getInputText():gsub("%s", "")))
+                UIManager:close(dialog)
+                UI.notify(_("Saved."), 1)
+            end },
+        } },
+    }
+    UIManager:show(dialog)
+    dialog:onShowKeyboard()
+end
+
+function DailyGames:addToMainMenu(menu_items)
+    local games_menu = {
+        { text = _("Open hub"), callback = function() self:showHub() end, separator = true },
+    }
+    for __, game in ipairs(GAMES) do
+        if game ~= KRILLION then
+            table.insert(games_menu, { text = game.text, callback = function() self:launch(game) end })
+        end
+    end
+
+    table.insert(games_menu, {
+        text = _("Krillion"),
+        separator = true,
+        sub_item_table = {
+            { text = _("Play today's dive"), callback = function() self:launch(KRILLION) end },
+            { text = _("Statistics"), keep_menu_open = true, callback = Krillion.showStats },
+            { text = _("Last result / share text"), keep_menu_open = true, callback = Krillion.showLastResult },
+            {
+                text = _("Timed rounds (25 s)"),
+                help_text = _("When off, rounds have no time limit. The official game uses 25 seconds."),
+                checked_func = Krillion.timedRounds,
+                callback = function() Krillion.setTimedRounds(not Krillion.timedRounds()) end,
+            },
+            { text = _("How to play"), keep_menu_open = true, callback = Krillion.showHelp },
+        },
+    })
+
+    table.insert(games_menu, {
+        text = _("NYT-S cookie (Daily Crossword)"),
+        keep_menu_open = true,
+        callback = function() self:editNytCookie() end,
+    })
+
+    menu_items.daily_games = {
+        text = _("Daily Games"),
+        sorting_hint = "tools",
+        sub_item_table = games_menu,
+    }
+end
+
+return DailyGames
