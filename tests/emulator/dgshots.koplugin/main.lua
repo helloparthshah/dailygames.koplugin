@@ -221,6 +221,28 @@ local STEPS = {
     function() shot("costcodle_guesses") end,
     function() closeAllGames() end,
 
+    -- Endless modes: menu, a solved Costcodle (Next puzzle button), Cuisine Match, Atlantic
+    function() plugin():showEndless() end,
+    function() shot("endless_menu") end,
+    function() closeTop() end,
+    function() mod("costcodle").launchEndless(today) end,
+    function() local app = top()
+        for ch in string.format("%.2f", app.price):gmatch(".") do app:onKey(ch) end; app:onKey("ENTER") end,
+    function() shot("costcodle_endless_solved") end,
+    function() top():next() end,
+    function() end,
+    function() shot("costcodle_endless_next") end,
+    function() closeAllGames() end,
+    function() mod("foodmodes").launchCuisineMatchEndless() end,
+    function() shot("cuisinematch_endless") end,
+    function() closeAllGames() end,
+    function() mod("crossword").launchAtlanticEndless() end,
+    function() shot("atlantic_endless") end,
+    function() top():showMenu() end,
+    function() shot("atlantic_endless_menu") end,
+    function() closeTop() end,
+    function() closeAllGames() end,
+
     -- Krillion (open only)
     function() mod("krillion").play() end,
     function() shot("krillion_intro") end,
