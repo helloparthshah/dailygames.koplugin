@@ -208,34 +208,25 @@ end
 local Logo = UI.Board:extend {}
 
 function Logo:setup()
-    local size = math.min(self.width, self.height)
-    self.size = size
     local blur = BLUR[math.min(#self.app.state.guesses + 1, #BLUR)]
     if self.app:isOver() then blur = 0 end
-    local img = ImageWidget:new { file = self.app.logo_path, width = size, height = size,
-        scale_factor = 0, alpha = true }
-    img:getSize()
-    local src = img._bb
-    if not src then img:free() return end
+    local src = self.app:logoSource(math.min(self.width, self.height))
+    if not src then return end
     local sw, sh = src:getWidth(), src:getHeight()
-    -- only some buffer types carry alpha (FFI structs error on unknown fields)
-    local t = src:getType()
-    local has_alpha = t == Blitbuffer.TYPE_BBRGB32 or t == Blitbuffer.TYPE_BB8A
-    local cells = blur <= 1 and math.max(sw, sh) or math.max(3, math.floor(96 / (blur * 1.15)))
+    if blur <= 1 then
+        self.bb = src:copy()
+        return
+    end
+    local cells = math.max(3, math.floor(96 / (blur * 1.15)))
     local cell = math.max(1, math.ceil(math.max(sw, sh) / cells))
     local bb = Blitbuffer.new(sw, sh, Blitbuffer.TYPE_BB8)
     bb:fill(Blitbuffer.COLOR_WHITE)
     for cy = 0, sh - 1, cell do
         for cx = 0, sw - 1, cell do
             local px, py = math.min(sw - 1, cx + math.floor(cell / 2)), math.min(sh - 1, cy + math.floor(cell / 2))
-            local c = src:getPixel(px, py)
-            local gray = c:getColor8().a
-            local alpha = has_alpha and c.alpha or 255
-            gray = math.floor((gray * alpha + 255 * (255 - alpha)) / 255)
-            bb:paintRect(cx, cy, math.min(cell, sw - cx), math.min(cell, sh - cy), Blitbuffer.Color8(gray))
+            bb:paintRect(cx, cy, math.min(cell, sw - cx), math.min(cell, sh - cy), src:getPixel(px, py))
         end
     end
-    img:free()
     self.bb = bb
 end
 
@@ -381,7 +372,8 @@ function App:buildBody(width, height)
             on_key = function(k) self:onKey(k) end,
         })
     end
-    local info = UI.text(string.format("Guess %d of %d", math.min(#self.state.guesses + 1, MAX_GUESSES), MAX_GUESSES),
+    local info = UI.text(self:isOver() and string.format("%d of %d guesses", #self.state.guesses, MAX_GUESSES)
+        or string.format("Guess %d of %d", #self.state.guesses + 1, MAX_GUESSES),
         w, { face = "smallinfofont" })
     local typed = UI.text(self.input ~= "" and self.input or " ", w, { bold = true, face = "infofont" })
     local status = self:statusLine(w)
@@ -450,6 +442,32 @@ end
 
 function App:onExit()
     if self.logo then self.logo:free() end
+    if self.logo_src then self.logo_src:free() self.logo_src = nil end
+end
+
+--- The logo as an 8-bit gray buffer on white, rendered once per size and
+-- owned by the app (ImageWidget's own buffer may be cached and freed).
+function App:logoSource(size)
+    if self.logo_src and self.logo_src_size == size then return self.logo_src end
+    if self.logo_src then self.logo_src:free() self.logo_src = nil end
+    if not self.logo_path then return nil end
+    local img = ImageWidget:new { file = self.logo_path, width = size, height = size, scale_factor = 0, alpha = true }
+    img:getSize()
+    local src = img._bb
+    if src then
+        local w, h = src:getWidth(), src:getHeight()
+        local bb = Blitbuffer.new(w, h, Blitbuffer.TYPE_BB8)
+        bb:fill(Blitbuffer.COLOR_WHITE)
+        local t = src:getType()
+        if t == Blitbuffer.TYPE_BBRGB32 or t == Blitbuffer.TYPE_BB8A then
+            bb:alphablitFrom(src, 0, 0, 0, 0, w, h)
+        else
+            bb:blitFrom(src, 0, 0, 0, 0, w, h)
+        end
+        self.logo_src, self.logo_src_size = bb, size
+    end
+    img:free()
+    return self.logo_src
 end
 
 -- loading -------------------------------------------------------------------------
