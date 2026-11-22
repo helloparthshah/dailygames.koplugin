@@ -218,7 +218,7 @@ function App:onKey(k)
         if not v or v <= 0 then return self:setStatus("Type a price first") end
         table.insert(self.state.guesses, v)
         self.input = ""
-        Store.saveProgress("costcodle", self.date, self.state)
+        Store.saveProgress("costcodle", self.date, self:markDone())
         self.status = self:isOver() and self:resultText() or ""
     else
         if k == "." and self.input:find("%.") then return end

@@ -197,7 +197,7 @@ end
 function Strands:progressKey() return "strands" end
 
 function Strands:save()
-    Store.saveProgress("strands", self.date, self.state)
+    Store.saveProgress("strands", self.date, self:markDone())
 end
 
 function Strands:tapCell(r, c)

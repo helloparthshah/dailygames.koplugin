@@ -148,10 +148,12 @@ function Crossword:getTitle()
     return (TITLES[self.kind] or "Crossword") .. " · " .. self.date
 end
 
+function Crossword:isComplete() return self:isSolved() end
+
 function Crossword:progressKey() return "crossword_" .. self.kind end
 
 function Crossword:save(defer)
-    Store.saveProgress("crossword_" .. self.kind, self.date, self.state, defer)
+    Store.saveProgress("crossword_" .. self.kind, self.date, self:markDone(), defer)
 end
 
 function Crossword:onExit()

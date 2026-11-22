@@ -114,6 +114,7 @@ function CuisineMatch:getTitle()
 end
 
 function CuisineMatch:isOver() return self.state.round > #self.rounds end
+function CuisineMatch:isComplete() return self:isOver() or self:result(#self.rounds).done end
 
 --- Result of round i: { done, correct, points, picks }
 function CuisineMatch:result(i)
@@ -194,14 +195,14 @@ function CuisineMatch:pick(k)
     else
         self.status = "One more chance!"
     end
-    Store.saveProgress("cuisinematch", self.date, self.state)
+    Store.saveProgress("cuisinematch", self.date, self:markDone())
     self:refresh()
 end
 
 function CuisineMatch:advance()
     self.state.round = self.state.round + 1
     self.status = ""
-    Store.saveProgress("cuisinematch", self.date, self.state)
+    Store.saveProgress("cuisinematch", self.date, self:markDone())
     self:refresh()
 end
 
@@ -235,6 +236,7 @@ function PlateOff:getTitle()
 end
 
 function PlateOff:isOver() return self.state.round > #self.rounds end
+function PlateOff:isComplete() return self:isOver() or self.state.picks[#self.rounds] ~= nil end
 
 local function ratio(food) return (food.yumCount or 0) / math.max(food.yuckCount or 0, 1) end
 local function liked(food)
@@ -300,14 +302,14 @@ function PlateOff:pick(side)
     local i = self.state.round
     self.state.picks[i] = side
     self.status = FoodModes.plateOffCorrect(self.rounds[i], side) and "Correct!" or "Nope, the other one."
-    Store.saveProgress("plateoff", self.date, self.state)
+    Store.saveProgress("plateoff", self.date, self:markDone())
     self:refresh()
 end
 
 function PlateOff:advance()
     self.state.round = self.state.round + 1
     self.status = ""
-    Store.saveProgress("plateoff", self.date, self.state)
+    Store.saveProgress("plateoff", self.date, self:markDone())
     self:refresh()
 end
 

@@ -128,6 +128,11 @@ function Connections:setup()
         mistakes = 0,
         guesses = {},           -- sorted-word keys already tried
     }
+    -- tolerate saves missing a field (older versions)
+    local st = self.state
+    st.remaining = st.remaining or { unpack(self.board) }
+    st.selected, st.solved, st.guesses = st.selected or {}, st.solved or {}, st.guesses or {}
+    st.mistakes = st.mistakes or 0
     if self:isOver() then self.status = self:resultText() end
 end
 
@@ -178,7 +183,7 @@ end
 function Connections:progressKey() return "connections" end
 
 function Connections:save()
-    Store.saveProgress("connections", self.date, self.state)
+    Store.saveProgress("connections", self.date, self:markDone())
 end
 
 function Connections:toggle(word)

@@ -70,6 +70,39 @@ local GAMES = {
 
 local KRILLION = GAMES[#GAMES]
 
+-- Store progress key for each game (see each game's progressKey()).
+local PROGRESS_KEY = {
+    wordle = "wordle", connections = "connections", strands = "strands",
+    mini = "crossword_mini", crossword = "crossword_daily", atlantic = "crossword_atlantic",
+    foodguessr = "foodguessr", cuisinematch = "cuisinematch", plateoff = "plateoff",
+    moreless = "moreless", marveldle = "marveldle", wheretaken = "wheretaken", costcodle = "costcodle",
+}
+
+--- Dates that can count as "today" for some game: local, UTC and US Eastern
+-- (crosswords use their publication date, FoodGuessr UTC, Krillion Eastern).
+local function todayDates()
+    local now = os.time()
+    return {
+        [os.date("%Y-%m-%d", now)] = true,
+        [os.date("!%Y-%m-%d", now)] = true,
+        [os.date("!%Y-%m-%d", now - 5 * 3600)] = true,
+    }
+end
+
+--- "done", "started" or nil for today's puzzle of a game, from saved progress.
+local function gameStatus(game)
+    if game.id == "krillion" then
+        if Krillion.history()[Krillion.today()] then return "done" end
+        local cur = Store.get("krillion/current")
+        if type(cur) == "table" and cur.date == Krillion.today() and #(cur.results or {}) > 0 then return "started" end
+        return nil
+    end
+    local key = PROGRESS_KEY[game.id]
+    local entry = key and Store.get("progress/" .. key)
+    if type(entry) ~= "table" or not todayDates()[entry.date] or type(entry.state) ~= "table" then return nil end
+    return entry.state.done and "done" or "started"
+end
+
 local DailyGames = WidgetContainer:extend {
     name = "dailygames",
     is_doc_only = false,
@@ -146,8 +179,9 @@ function DailyGames:showHub()
     local dialog
     local buttons = {}
     for __, game in ipairs(GAMES) do
+        local status = gameStatus(game)
         table.insert(buttons, { {
-            text = game.text,
+            text = game.text .. (status == "done" and "  ✓" or status == "started" and "  …" or ""),
             callback = function()
                 UIManager:close(dialog)
                 self:launchGame(game)
@@ -222,5 +256,7 @@ function DailyGames:addToMainMenu(menu_items)
         sub_item_table = games_menu,
     }
 end
+
+DailyGames.gameStatus = gameStatus -- exposed for tests
 
 return DailyGames

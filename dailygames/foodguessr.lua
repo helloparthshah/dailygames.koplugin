@@ -141,6 +141,13 @@ function App:setup()
     self.input = ""
 end
 
+function App:isComplete()
+    for i = 1, #self.rounds do
+        if not self:roundOver(i) then return false end
+    end
+    return true
+end
+
 function App:progressKey() return "foodguessr" end
 
 function App:getTitle()
@@ -271,7 +278,7 @@ function App:onKey(k)
 end
 
 function App:save()
-    Store.saveProgress("foodguessr", self.date, self.state)
+    Store.saveProgress("foodguessr", self.date, self:markDone())
 end
 
 function App:guess(code)

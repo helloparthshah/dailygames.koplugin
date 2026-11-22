@@ -159,6 +159,8 @@ function App:setup()
     if self.state.won then self.status = "You got it!" end
 end
 
+function App:isComplete() return self.state.won end
+
 function App:progressKey() return "marveldle" end
 
 function App:getTitle()
@@ -252,7 +254,7 @@ function App:guess(char)
         for _, col in ipairs(COLUMNS) do if sim[col.key] ~= "Exact" then all = false end end
         self.status = all and "All correct, but it's not this character!" or ""
     end
-    Store.saveProgress("marveldle", self.date, self.state)
+    Store.saveProgress("marveldle", self.date, self:markDone())
     self:refresh()
 end
 

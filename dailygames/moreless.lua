@@ -239,7 +239,7 @@ function App:buildBody(width, height)
 end
 
 function App:save()
-    Store.saveProgress("moreless", self.date, self.state)
+    Store.saveProgress("moreless", self.date, self:markDone())
 end
 
 function App:pick(direction)
