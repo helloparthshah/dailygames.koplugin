@@ -63,11 +63,11 @@ function Board:draw(bb, x, y)
     for _, w in ipairs(app.state.found) do
         local coords = app.coords[w]
         if coords then
-            drawPath(self, bb, x, y, coords, 1, math.floor(self.r * 0.6),
+            drawPath(self, bb, x, y, coords, 1, math.floor(self.r * 0.9),
                 app.targets[w] == "spangram" and UI.DARK or UI.LIGHT)
         end
     end
-    drawPath(self, bb, x, y, app.state.path, 0, math.floor(self.r * 0.35), UI.BLACK)
+    drawPath(self, bb, x, y, app.state.path, 0, math.floor(self.r * 0.5), UI.BLACK)
 
     for r = 1, self.rows do
         for c = 1, self.cols do
