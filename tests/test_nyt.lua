@@ -122,7 +122,7 @@ ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==12); hub.buttons[12][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==13); hub.buttons[13][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
@@ -223,4 +223,44 @@ for i = 1, 4 do table.remove(app.state.guesses) end
 app:guess(chars[1]); assert(app.state.won and app.status:find("Thor"), app.status)
 app:onClose()
 plug:onDailyGamesMarveldle(); assert(top().state.won, "progress restored"); top():onClose()
+-- WHERETAKEN
+local WT = require("dailygames/wheretaken")
+assert(WT.distance(48.8566, 2.3522, 51.5074, -0.1278) == 344, "Paris-London " .. WT.distance(48.8566, 2.3522, 51.5074, -0.1278))
+local brg = WT.bearing(48.8566, 2.3522, 51.5074, -0.1278); assert(brg > 320 and brg < 340, brg)
+assert(WT.percentage(0) == 100 and WT.percentage(21000) == 0 and WT.percentage(2100) == 90)
+local sh1 = WT.seededShuffle({ 1, 2, 3, 4, 5 }, "2026-11-22"); local sh2 = WT.seededShuffle({ 1, 2, 3, 4, 5 }, "2026-11-22")
+assert(table.concat(sh1) == table.concat(sh2), "seeded shuffle is deterministic")
+local CDN = "https://cdn-assets.teuteuf.fr/data/"
+ROUTES[CDN .. "wheretaken-classic/games/" .. d:sub(1, 4) .. "/" .. d .. ".json"] = function()
+    return { countryCode = "BA", photoCode = 8, landmarkData = { landmarkCode = 137, imageCode = 2 },
+             cityData = { cityCode = 907, imageCode = 2 } }, 200 end
+-- reference files are read from the cache; write them where the game expects
+os.execute("mkdir -p /tmp/dgtest/cache")
+local J = package.loaded["json"]
+local function put(name, v) local f = io.open("/tmp/dgtest/cache/wheretaken-common_" .. name, "w"); f:write(J.encode(v)); f:close() end
+put("countries.json", { { code = "BA", name = "Bosnia and Herzegovina", latitude = 43.9, longitude = 17.7 },
+    { code = "HR", name = "Croatia", latitude = 45.1, longitude = 15.2 }, { code = "FR", name = "France", latitude = 46.2, longitude = 2.2 } })
+put("landmarks.json", { { landmarkCode = 137, countryCode = "BA", names = { en = "Mostar Old Bridge" } },
+    { landmarkCode = 1, countryCode = "FR", names = { en = "Eiffel Tower" } }, { landmarkCode = 2, countryCode = "HR", names = { en = "Dubrovnik Walls" } } })
+put("cities.json", { { index = 1, countryCode = "BA", names = { en = "Sarajevo" }, capital = true },
+    { index = 907, countryCode = "BA", names = { en = "Mostar" } }, { index = 3, countryCode = "BA", names = { en = "Tuzla" } },
+    { index = 4, countryCode = "BA", names = { en = "Zenica" } } })
+package.loaded["dailygames/http"].download = function() return nil end
+package.loaded["libs/libkoreader-lfs"] = { attributes = function(path, what) if what == "modification" then return os.time() end if what == "mode" then return "directory" end end, dir = function() return function() end end }
+plug:onDailyGamesWhereTaken(); app = top(); assert(app._name == "wheretaken_app", tostring(app._name))
+app:onKey("C"); app:onKey("R"); assert(app:suggest()[1].code == "HR")
+app:guess("HR"); local jj = app:judge("HR"); assert(not jj.correct and jj.km > 0 and jj.dir, "judge")
+app:guess("BA"); assert(app:mainOver() and app.state.stars.main)
+app:nextPhase(); assert(app.state.phase == "landmark", app.state.phase)
+local q = app:bonusQuestion("landmark"); local right
+for _, c in ipairs(q.choices) do if c.correct then right = c end end
+assert(right.label == "Mostar Old Bridge" and #q.choices == 3)
+app:answerBonus(right); assert(app.state.stars.landmark)
+app:nextPhase(); assert(app.state.phase == "capital")
+q = app:bonusQuestion("capital"); local wrong
+for _, c in ipairs(q.choices) do if not c.correct then wrong = c end end
+app:answerBonus(wrong); app:answerBonus(wrong); assert(not app.state.stars.capital and app.state.bonus.capital.tries == 2)
+app:nextPhase(); assert(app.state.phase == "city")
+app:nextPhase(); assert(app.state.phase == "done")
+app:onClose()
 print("ALL NYT TESTS PASSED")

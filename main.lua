@@ -30,6 +30,7 @@ local Marveldle = require("dailygames/marveldle")
 local MoreLess = require("dailygames/moreless")
 local Store = require("dailygames/store")
 local Strands = require("dailygames/strands")
+local WhereTaken = require("dailygames/wheretaken")
 local UI = require("dailygames/ui")
 local Wordle = require("dailygames/wordle")
 local ZenOS = require("dailygames/zenos")
@@ -57,6 +58,7 @@ local GAMES = {
     { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end },
     { id = "moreless", event = "MoreLess", text = _("More/Less"), launch = function() MoreLess.launch() end },
     { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), launch = function() Marveldle.launch() end },
+    { id = "wheretaken", event = "WhereTaken", text = _("WhereTaken"), launch = function() WhereTaken.launch(today()) end },
     { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end },
     -- Krillion stays last (it has its own submenu).
     { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },
