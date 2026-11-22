@@ -12,7 +12,6 @@ Scoring follows the site's V2 rules: 5,000 points per dish.
 
 local ButtonTable = require("ui/widget/buttontable")
 local DataStorage = require("datastorage")
-local ImageWidget = require("ui/widget/imagewidget")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
@@ -254,7 +253,7 @@ function App:buildBody(width, height)
     local fixed = bottom:getSize().h + hints:getSize().h + typed:getSize().h + UI.px(5 * 22) * 1 + UI.px(40)
     local img_h = math.max(UI.px(120), height - fixed)
     if round.image_path then
-        table.insert(parts, ImageWidget:new { file = round.image_path, width = w, height = img_h, scale_factor = 0 })
+        table.insert(parts, UI.photo(round.image_path, w, img_h))
     else
         table.insert(parts, UI.text("(photo unavailable)", w))
     end

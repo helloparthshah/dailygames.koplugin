@@ -25,7 +25,9 @@ local Font = require("ui/font")
 local Geom = require("ui/geometry")
 local GestureRange = require("ui/gesturerange")
 local InfoMessage = require("ui/widget/infomessage")
+local ImageWidget = require("ui/widget/imagewidget")
 local InputContainer = require("ui/widget/container/inputcontainer")
+local CenterContainer = require("ui/widget/container/centercontainer")
 local RenderText = require("ui/rendertext")
 local Size = require("ui/size")
 local TextBoxWidget = require("ui/widget/textboxwidget")
@@ -294,6 +296,21 @@ function UI.text(text, width, opts)
         fgcolor = opts.fg or UI.BLACK,
         bgcolor = opts.bg or UI.WHITE,
     }
+end
+
+--- A photo scaled to fit max_w x max_h, keeping its shape. The widget is
+-- exactly the picture's size (centred horizontally): KOReader's night mode
+-- re-inverts an image widget's whole box, so any padding inside the box would
+-- show up as bright bars.
+function UI.photo(path, max_w, max_h)
+    max_w, max_h = math.floor(max_w), math.floor(max_h)
+    if not path then return UI.text("(photo unavailable)", max_w) end
+    local img = ImageWidget:new { file = path, width = max_w, height = max_h, scale_factor = 0 }
+    img:getSize() -- renders and scales
+    local bw, bh = max_w, max_h
+    if img._bb then bw, bh = img._bb:getWidth(), img._bb:getHeight() end
+    img.width, img.height = bw, bh
+    return CenterContainer:new { dimen = Geom:new { w = max_w, h = bh }, img }
 end
 
 -- Board: custom-drawn widget with one tap area ---------------------------------

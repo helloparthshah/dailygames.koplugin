@@ -13,7 +13,6 @@ data (correctFoodIndex; yumCount/yuckCount), checked here like the site does.
 
 local ButtonTable = require("ui/widget/buttontable")
 local DataStorage = require("datastorage")
-local ImageWidget = require("ui/widget/imagewidget")
 local InfoMessage = require("ui/widget/infomessage")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
@@ -43,9 +42,15 @@ local function clean(name)
     return (tostring(name or "?"):gsub("%*%*%*", ""))
 end
 
-local function countryNames(food)
+--- Country list; with `limit`, "A, B, C +22 more" so captions stay one or two lines.
+local function countryNames(food, limit)
     local names = {}
     for _, c in ipairs(food.countries or {}) do table.insert(names, c.name) end
+    if limit and #names > limit then
+        local more = #names - limit
+        for i = #names, limit + 1, -1 do names[i] = nil end
+        return table.concat(names, ", ") .. string.format(" +%d more", more)
+    end
     return table.concat(names, ", ")
 end
 
@@ -88,7 +93,7 @@ local function commas(n)
 end
 
 local function dish(path, w, h)
-    if path then return ImageWidget:new { file = path, width = w, height = h, scale_factor = 0 } end
+    if path then return UI.photo(path, w, h) end
     return UI.text("(photo unavailable)", w)
 end
 
@@ -165,7 +170,7 @@ function CuisineMatch:buildBody(width, height)
     for k, food in ipairs(round.foods) do
         local label
         if res.done then
-            label = (k == round.correctFoodIndex + 1 and "✓ " or "") .. clean(food.name) .. " · " .. countryNames(food)
+            label = (k == round.correctFoodIndex + 1 and "✓ " or "") .. clean(food.name) .. " · " .. countryNames(food, 3)
         elseif picks[1] == k then
             label = "✗ Not from " .. round.country.name
         end
