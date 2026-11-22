@@ -26,6 +26,14 @@ Needs Wi-Fi to fetch each day's puzzles. Progress is saved on the device, so you
 
 Every game has a ☰ menu with **How to play** and **Restart puzzle**.
 
+**Endless modes** (hub > Endless modes, or Tools > Daily Games > Endless modes) let you keep playing after today's puzzle, using what each site offers for free:
+
+- **Costcodle:** a random item from earlier days.
+- **Cuisine Match:** FoodGuessr's own random game.
+- **The Atlantic:** a random puzzle from the last two weeks.
+
+Endless games are saved separately, so they never touch today's puzzle or its ✓. Tap **Next puzzle ›** when you finish one, or ☰ > **New puzzle** to skip.
+
 ## Games
 
 | Game | Source | What you do |

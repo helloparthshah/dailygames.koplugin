@@ -19,6 +19,7 @@ Visual language used by every game:
 
 local Blitbuffer = require("ffi/blitbuffer")
 local ButtonDialog = require("ui/widget/buttondialog")
+local ButtonTable = require("ui/widget/buttontable")
 local ConfirmBox = require("ui/widget/confirmbox")
 local Device = require("device")
 local Font = require("ui/font")
@@ -513,13 +514,19 @@ function FullscreenApp:showMenu()
             callback = function() UIManager:close(dialog); item.callback() end,
         } })
     end
+    if self.on_next then
+        table.insert(buttons, { {
+            text = "New puzzle",
+            callback = function() UIManager:close(dialog); self:next() end,
+        } })
+    end
     if self:progressKey() then
         table.insert(buttons, { {
             text = "Restart puzzle",
             callback = function()
                 UIManager:close(dialog)
                 UIManager:show(ConfirmBox:new {
-                    text = "Restart today's puzzle? Your progress will be cleared.",
+                    text = (self.on_next and "Restart this puzzle?" or "Restart today's puzzle?") .. " Your progress will be cleared.",
                     ok_text = "Restart",
                     ok_callback = function() self:restart() end,
                 })
@@ -560,10 +567,24 @@ function FullscreenApp:progressKey()
     return nil
 end
 
+--- Key progress is saved under: endless games (on_next set) keep their own
+-- slot so they never touch today's daily puzzle or the hub's ticks.
+function FullscreenApp:storeKey()
+    local key = self:progressKey()
+    return key and self.on_next and key .. "_endless" or key
+end
+
+--- Endless mode: close this puzzle and load another (on_next launches it).
+function FullscreenApp:next()
+    local on_next = self.on_next
+    self:onClose()
+    UIManager:nextTick(on_next)
+end
+
 --- Clears today's saved progress and starts the puzzle over.
 function FullscreenApp:restart()
     local Store = require("dailygames/store")
-    Store.clearProgress(self:progressKey())
+    Store.clearProgress(self:storeKey())
     self.state = nil
     self.status = ""
     if self.setup then self:setup() end
@@ -589,7 +610,7 @@ function FullscreenApp:rebuild()
         width = sw,
         fullscreen = true,
         align = "center",
-        title = self:getTitle(),
+        title = self:getTitle() .. (self.on_next and " · Endless" or ""),
         with_bottom_line = true,
         left_icon = "appbar.menu",
         left_icon_tap_callback = function() self:showMenu() end,
@@ -598,6 +619,13 @@ function FullscreenApp:rebuild()
     }
     local margin = UI.px(8)
     local body_h = sh - title_bar:getSize().h - 2 * margin
+    -- endless mode: once a puzzle is finished, offer the next one at the bottom
+    local next_btn
+    if self.on_next and self:isComplete() then
+        next_btn = ButtonTable:new { width = math.floor(sw * 0.94), show_parent = self,
+            buttons = { { { text = "Next puzzle ›", callback = function() self:next() end } } } }
+        body_h = body_h - next_btn:getSize().h - margin
+    end
     local top, bottom = self:buildBody(sw, body_h)
     local group = VerticalGroup:new { align = "center", title_bar, VerticalSpan:new { width = margin } }
     local used = 0
@@ -608,6 +636,13 @@ function FullscreenApp:rebuild()
     if bottom then
         table.insert(group, VerticalSpan:new { width = math.max(0, body_h - used - bottom:getSize().h) })
         table.insert(group, bottom)
+    end
+    if next_btn then
+        if not bottom then
+            table.insert(group, VerticalSpan:new { width = math.max(0, body_h - used) })
+        end
+        table.insert(group, VerticalSpan:new { width = margin })
+        table.insert(group, next_btn)
     end
     self[1] = group
 end

@@ -73,4 +73,25 @@ assert(d.clues[1].label == "1" and d.clues[1].dir == "Across" and d.clues[1].tex
 assert(d.clues[2].label == "4" and d.clues[2].text == "Spider's home")
 assert(d.clues[3].dir == "Down" and table.concat(d.clues[3].cells, ",") == "1,4,7")
 assert(#d.cells[1].clues == 2)
+assert(A.idDate("atlantic_20261120") == "2026-11-20" and A.idDate("x") == nil)
+
+-- list + fetch over a stubbed HTTP layer
+local pages = {
+    ["https://cdn3.amuselabs.com/atlantic/date-picker?set=atlantic"] = '<script id="params">'
+        .. JSON.encode { streakInfo = { { puzzleDetails = { puzzleId = "atlantic_20261122" } },
+            { puzzleDetails = { puzzleId = "atlantic_20261121" } } } } .. '</script>',
+    ["https://cdn3.amuselabs.com/atlantic/crossword?id=atlantic_20261121&set=atlantic"] =
+        '<script id="params">' .. JSON.encode { rawc = rawc } .. '</script>',
+}
+package.loaded["dailygames/http"].request = function(req)
+    local body = pages[req.url]
+    if body then return body, 200 end
+    return nil, 404
+end
+local ids = assert(A.list("atlantic", "atlantic"))
+assert(#ids == 2 and ids[2] == "atlantic_20261121")
+local f = assert(A.fetch("atlantic", "atlantic", "atlantic_20261121"))
+assert(f.date == "2026-11-21" and f.width == 3)
+assert(A.fetch("atlantic", "atlantic", "atlantic_20261122") == nil)
+assert(A.latest("atlantic", "atlantic").date == "2026-11-21", "latest falls back to the second puzzle")
 print("AMUSE PASSED")
