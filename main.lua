@@ -49,6 +49,8 @@ local GAMES = {
       launch = function() Crossword.launch("mini", nytCookie()) end },
     { id = "crossword", event = "Crossword", text = _("Daily Crossword"),
       launch = function() Crossword.launch("daily", nytCookie()) end },
+    { id = "atlantic", event = "Atlantic", text = _("The Atlantic Crossword"),
+      launch = function() Crossword.launch("atlantic") end },
     { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end },
     -- Krillion stays last (it has its own submenu).
     { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },
