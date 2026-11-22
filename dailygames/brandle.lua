@@ -295,7 +295,7 @@ local HEADS = { "Brand", "Industry", "Country", "Founded", "Revenue" }
 function Table:setup()
     self.gap = UI.px(3)
     self.head_h = UI.px(30)
-    self.row_h = math.max(UI.px(36), math.floor((self.height - self.head_h) / MAX_GUESSES) - self.gap)
+    self.row_h = math.floor((self.height - self.head_h) / MAX_GUESSES) - self.gap
     self.cell_w = math.floor((self.width - self.gap * 4) / 5)
     self.head_face = UI.fitFace({ "Industry" }, self.cell_w * 0.9, self.head_h * 0.6, { bold = true })
 end
@@ -396,8 +396,11 @@ function App:buildBody(width, height)
     local typed = UI.text(self.input ~= "" and self.input or " ", w, { bold = true, face = "infofont" })
     local status = self:statusLine(w)
     local avail = height - bottom:getSize().h - info:getSize().h - typed:getSize().h - status:getSize().h - UI.px(24)
-    local table_h = math.floor(avail * 0.55)
-    local logo_h = math.max(UI.px(80), avail - table_h)
+    -- the table always has room for all 8 rows; the logo gets the rest
+    local head_h, gap = UI.px(30), UI.px(3)
+    local row_h = math.min(UI.px(44), math.floor((avail * 0.7 - head_h) / MAX_GUESSES) - gap)
+    local table_h = head_h + MAX_GUESSES * (row_h + gap)
+    local logo_h = math.max(UI.px(60), avail - table_h)
     if self.logo then self.logo:free() end
     self.logo = Logo:new { width = w, height = logo_h, app = self }
     local grid = Table:new { width = w, height = table_h, app = self }
