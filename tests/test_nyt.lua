@@ -126,7 +126,7 @@ ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==13); hub.buttons[13][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==15); hub.buttons[15][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
@@ -267,4 +267,29 @@ app:answerBonus(wrong); app:answerBonus(wrong); assert(not app.state.stars.capit
 app:nextPhase(); assert(app.state.phase == "city")
 app:nextPhase(); assert(app.state.phase == "done")
 app:onClose()
+-- FOODGUESSR MODES
+local FM = require("dailygames/foodmodes")
+local u = FM.url("cuisineMatch.today", 1795330000)
+assert(u:find("cuisineMatch.today?batch=1&input=", 1, true) and u:find("1795305600000", 1, true), u)
+local function food(name, country) return { name = name, ingredients = "x", countries = { { name = country } } } end
+ROUTES[FM.url("cuisineMatch.today")] = function()
+    return { { result = { data = { json = { date = d .. "T00:00:00.000Z", rounds = {
+        { country = { name = "Zimbabwe" }, correctFoodIndex = 1, foods = { food("Bush Coconut", "Australia"), food("Boerewors", "Zimbabwe"), food("Cappon Magro", "Italy") } },
+        { country = { name = "Japan" }, correctFoodIndex = 0, foods = { food("Natto", "Japan"), food("Tacos", "Mexico"), food("Pho", "Vietnam") } },
+    } } } } } }, 200 end
+plug:onDailyGamesCuisineMatch(); app = top(); assert(app._name == "cuisinematch_app", tostring(app._name))
+app:pick(1); assert(app.status == "One more chance!" and not app:result(1).done)
+app:pick(2); assert(app:result(1).points == 2000)
+app:advance(); app:pick(1); assert(app:result(2).points == 5000 and app:score() == 7000)
+app:advance(); assert(app:isOver()); app:onClose()
+ROUTES[FM.url("plateOff.today")] = function()
+    return { { result = { data = { json = { date = d .. "T00:00:00.000Z", rounds = {
+        { leftFood = { name = "Bitterballen", yumCount = 2289, yuckCount = 279 }, rightFood = { name = "Lihapiirakka", yumCount = 2647, yuckCount = 473 } },
+        { leftFood = { name = "A***", yumCount = 10, yuckCount = 10 }, rightFood = { name = "B", yumCount = 5, yuckCount = 5 } },
+    } } } } } }, 200 end
+plug:onDailyGamesPlateOff(); app = top(); assert(app._name == "plateoff_app")
+assert(FM.plateOffCorrect(app.rounds[1], "left") and not FM.plateOffCorrect(app.rounds[1], "right"))
+assert(FM.plateOffCorrect(app.rounds[2], "right"), "ties count as right")
+app:pick("right"); assert(app.status:find("Nope")); app:advance(); app:pick("left"); app:advance()
+assert(app:isOver() and app:score() == 1); app:onClose()
 print("ALL NYT TESTS PASSED")

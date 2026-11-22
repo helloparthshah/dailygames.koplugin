@@ -25,6 +25,7 @@ local Connections = require("dailygames/connections")
 local Costcodle = require("dailygames/costcodle")
 local Crossword = require("dailygames/crossword")
 local FoodGuessr = require("dailygames/foodguessr")
+local FoodModes = require("dailygames/foodmodes")
 local Krillion = require("dailygames/krillion")
 local Marveldle = require("dailygames/marveldle")
 local MoreLess = require("dailygames/moreless")
@@ -56,6 +57,9 @@ local GAMES = {
     { id = "atlantic", event = "Atlantic", text = _("The Atlantic Crossword"),
       launch = function() Crossword.launch("atlantic") end },
     { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end },
+    { id = "cuisinematch", event = "CuisineMatch", text = _("FoodGuessr: Cuisine Match"),
+      launch = function() FoodModes.launchCuisineMatch() end },
+    { id = "plateoff", event = "PlateOff", text = _("FoodGuessr: Plate-Off"), launch = function() FoodModes.launchPlateOff() end },
     { id = "moreless", event = "MoreLess", text = _("More/Less"), launch = function() MoreLess.launch() end },
     { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), launch = function() Marveldle.launch() end },
     { id = "wheretaken", event = "WhereTaken", text = _("WhereTaken"), launch = function() WhereTaken.launch(today()) end },
