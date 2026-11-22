@@ -1238,12 +1238,110 @@ function Screen:tapAt(lx, ly)
     end
 end
 
+-- winning hands chart ------------------------------------------------------------------
+
+local function ex(...)
+    local suits = { 1, 2, 3, 1, 2 }
+    local h = {}
+    for i, v in ipairs { ... } do h[i] = { v = v, s = v == 0 and 0 or suits[i] } end
+    return h
+end
+
+-- The ORSL hands, best first, each with an example.
+local HAND_CHART = {
+    { "Pure Sabacc", "Two sylops, nothing else", ex(0, 0) },
+    { "Full Sabacc", "−10 −10 0 +10 +10 exactly", ex(-10, -10, 0, 10, 10) },
+    { "Yee-Haa", "Zero with a pair and a sylop", ex(0, 4, -4) },
+    { "Rhylet", "Three of a kind and a pair of the other sign", ex(2, 2, 2, -3, -3) },
+    { "Straight Staves", "+7 −8 −9 +10, or the inverse", ex(7, -8, -9, 10) },
+    { "Squadron", "Zero with four of a kind", ex(5, 5, -5, -5) },
+    { "Gee Whiz", "+1 +2 +3 +4 −10, or the inverse", ex(1, 2, 3, 4, -10) },
+    { "Straight Khyron", "Zero with a run of four", ex(1, -2, -3, 4) },
+    { "Rule of Two", "Zero with two pairs", ex(3, -3, 2, -2) },
+    { "Sabacc", "Zero with one pair", ex(5, -5) },
+    { "Sabacc", "Any other zero", ex(1, 2, -3) },
+    { "Nulrhek", "Not zero: closest to zero wins", ex(4, -1) },
+}
+Sabacc.HAND_CHART = HAND_CHART
+
+local Chart = UI.Board:extend {}
+
+function Chart:setup()
+    local W, H = self.width, self.height
+    local u = W / 100
+    self.u, self.pad = u, math.floor(2 * u)
+    self.head_h = math.floor(H * 0.075)
+    self.foot_h = math.floor(H * 0.07)
+    self.row_h = math.floor((H - self.head_h - self.foot_h - self.pad) / #HAND_CHART)
+    self.mini_h = math.floor(self.row_h * 0.8)
+    self.mini_w = math.floor(self.mini_h / 1.42)
+    local text_w = W - 2 * self.pad - 5 * (self.mini_w + math.floor(u)) - math.floor(10 * u)
+    self.text_w = text_w
+    self.face_title = UI.fitFace({ "W I N N I N G   H A N D S" }, W * 0.7, self.head_h * 0.4, { font = MONO, bold = true })
+    self.face_rank = UI.fitFace({ "12" }, 7 * u, self.row_h * 0.4, { font = MONO, bold = true })
+    self.face_name = UI.fitFace({ "STRAIGHT KHYRON" }, text_w, self.row_h * 0.26, { font = MONO, bold = true })
+    self.face_desc = UI.fitFace({ "Three of a kind and a pair of the" }, text_w, self.row_h * 0.2)
+    self.face_foot = UI.fitFace({ "Pairs, kinds and runs go by number, whatever the sign." }, W * 0.92, self.foot_h * 0.26)
+    self.faces_mini = { num = UI.fitFace({ "+10", "−10" }, self.mini_w * 0.52, self.mini_h * 0.17 * 0.85, { font = MONO, bold = true }) }
+end
+
+function Chart:draw(bb, x, y)
+    local W, u, pad = self.width, self.u, self.pad
+    -- header band with a close cross
+    local hh = self.head_h
+    fillPoly(bb, { { x, y }, { x + W, y }, { x + W, y + hh * 0.8 }, { x + W * 0.7, y + hh * 0.8 }, { x + W * 0.67, y + hh },
+        { x + W * 0.33, y + hh }, { x + W * 0.3, y + hh * 0.8 }, { x, y + hh * 0.8 } }, UI.BLACK)
+    UI.drawText(bb, self.face_title, "W I N N I N G   H A N D S", x, y, W, math.floor(hh * 0.8), UI.WHITE, true)
+    local cx, cy, d, t = x + W - math.floor(5.5 * u), y + math.floor(hh * 0.4), math.floor(2.2 * u), math.max(2, math.floor(u * 0.5)) + 1
+    UI.drawLine(bb, cx - d, cy - d, cx + d, cy + d, t, UI.WHITE)
+    UI.drawLine(bb, cx - d, cy + d, cx + d, cy - d, t, UI.WHITE)
+    UI.drawTextLeft(bb, self.face_foot, "BEST", x + pad, y + hh, math.floor(pad * 1.6), UI.DARK, true)
+    -- rows, best first
+    local ry = y + hh + pad
+    for i, row in ipairs(HAND_CHART) do
+        local rh = self.row_h
+        if i % 2 == 0 then bb:paintRect(x + pad, ry, W - 2 * pad, rh, UI.PALE) end
+        UI.drawText(bb, self.face_rank, tostring(i), x + pad, ry, math.floor(7 * u), rh, i <= 2 and UI.BLACK or UI.DARK, true)
+        local tx = x + pad + math.floor(8 * u)
+        UI.drawTextLeft(bb, self.face_name, row[1]:upper(), tx, ry + math.floor(rh * 0.14), math.floor(rh * 0.36), UI.BLACK, true)
+        local f, lines = UI.fitLines(row[2], self.text_w, math.floor(rh * 0.4), 2)
+        local lh = math.floor(rh * 0.4 / 2)
+        for li, l in ipairs(lines) do
+            UI.drawTextLeft(bb, f, l, tx, ry + math.floor(rh * 0.5) + (li - 1) * lh, lh, UI.DARK)
+        end
+        local hand = row[3]
+        local step = self.mini_w + math.floor(u)
+        local cxs = x + W - pad - math.floor(u) - #hand * step
+        for j, c in ipairs(hand) do
+            drawCard(bb, c, cxs + (j - 1) * step, ry + math.floor((rh - self.mini_h) / 2), self.mini_w, self.mini_h, self.faces_mini, true)
+        end
+        ry = ry + rh
+    end
+    -- footer: how pairs and ties work
+    local fy = y + self.height - self.foot_h
+    bb:paintRect(x + pad, fy, W - 2 * pad, 1, UI.LIGHT)
+    local lh = math.floor(self.foot_h / 3)
+    UI.drawText(bb, self.face_foot, "Pairs, kinds and runs go by number, whatever the sign.", x, fy + math.floor(lh * 0.3), W, lh, UI.BLACK)
+    UI.drawText(bb, self.face_foot, "Ties: lower pair or run, then most cards, then highest positive total.", x, fy + math.floor(lh * 1.3), W, lh, UI.DARK)
+end
+
+function Chart:tapAt()
+    self.app:onClose() -- tap anywhere to go back to the table
+end
+
+local ChartApp = UI.FullscreenApp:extend { name = "sabacc_hands", title = "Winning hands" }
+
+function ChartApp:rebuild()
+    if self[1] then self[1]:free() end
+    self[1] = Chart:new { width = self.dimen.w, height = self.dimen.h, app = self }
+end
+
 -- app ---------------------------------------------------------------------------------
 
 local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
 
 GOAL
-Have the best hand at the end of 3 rounds, as close to zero as possible.
+Have the best hand at the end of 3 rounds, as close to zero as possible. ☰ > Winning hands shows every hand in order of strength, with examples.
 
 THE CARDS
 62 cards: +1 to +10 and −1 to −10, three of each, plus two sylops worth 0.
@@ -1424,6 +1522,7 @@ end
 
 function App:menuItems()
     return {
+        { text = "Winning hands", callback = function() UIManager:show(ChartApp:new {}) end },
         { text = "How to play", callback = function() self:showHelp() end },
         { text = "New table (reset credits)", callback = function() self:newTable() end },
     }

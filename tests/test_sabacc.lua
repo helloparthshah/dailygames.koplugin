@@ -52,6 +52,12 @@ assert(beats(H(2, -1), H(-2, 1)), "positive Nulrhek beats negative")
 assert(beats(H(2, -1), H(5, -3)), "closer to zero wins")
 assert(beats(H(3, 1, -3), H(2, -1)), "Nulrhek: most cards")
 
+-- the Winning hands chart: each example is the hand it illustrates, in rank order
+for i, row in ipairs(Sabacc.HAND_CHART) do
+    local e = Sabacc.evaluate(row[3])
+    assert(e.rank == i and e.name:sub(1, #row[1]) == row[1], "chart row " .. i .. ": " .. e.name .. " rank " .. e.rank)
+end
+
 -- a new table: four seats, antes in both pots, two cards each, one discard
 local g = Sabacc.newTable()
 assert(#g.players == 4 and g.pot == 80 and g.sabacc_pot == 40)
@@ -155,6 +161,14 @@ paint(app)
 press(app, "Next hand")
 assert(app.game.hand_no >= 2)
 paint(app)
+
+-- Winning hands opens the drawn chart; a tap goes back to the table
+for _, item in ipairs(app:menuItems()) do if item.text == "Winning hands" then item.callback() end end
+local chart = top()
+assert(chart.name == "sabacc_hands")
+chart[1]:paintTo(fakebb, 0, 0)
+chart[1]:onTap(nil, { pos = { x = 10, y = 10 } })
+assert(top() == app, "tap closes the chart")
 
 -- How to play opens a scrollable viewer with the full rules
 app:showHelp()
