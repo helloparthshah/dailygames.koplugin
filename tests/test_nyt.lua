@@ -209,7 +209,11 @@ ROUTES["https://api.lessgames.com/moreless/guess"] = function(o)
 end
 plug:onDailyGamesMoreLess(); app = top(); assert(app._name == "moreless_app", tostring(app._name))
 assert(app:items().title == "C0R1")
-app:pick("left"); assert(app.state.revealed and app.state.results["0"][1] == true and app:statFor(2) == "100")
+-- tapping the top card picks it
+local function findTappables(w, out) out = out or {} if type(w) ~= "table" then return out end if w.on_tap and w.onTap then out[#out + 1] = w end for _, c in ipairs(w) do findTappables(c, out) end return out end
+local cardsT = findTappables(app); assert(#cardsT == 2, "two tappable cards: " .. #cardsT)
+cardsT[1]:onTap(); assert(app.state.revealed and app.state.results["0"][1] == true and app:statFor(2) == "100")
+assert(#findTappables(app) == 0, "cards stop being tappable after the reveal")
 app:advance(); assert(app.state.round == 2 and app:items().title == "C0R2")
 for c = 0, 4 do for r = (c == 0 and 2 or 1), 5 do app:pick(r % 2 == 0 and "right" or "left"); app:advance() end end
 assert(app:isOver() and guesses == 25, "all rounds played: " .. guesses)
