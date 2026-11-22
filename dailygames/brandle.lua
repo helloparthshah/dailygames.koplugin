@@ -223,8 +223,17 @@ function Logo:setup()
     bb:fill(Blitbuffer.COLOR_WHITE)
     for cy = 0, sh - 1, cell do
         for cx = 0, sw - 1, cell do
-            local px, py = math.min(sw - 1, cx + math.floor(cell / 2)), math.min(sh - 1, cy + math.floor(cell / 2))
-            bb:paintRect(cx, cy, math.min(cell, sw - cx), math.min(cell, sh - cy), src:getPixel(px, py))
+            -- average the square (sampled on a grid) so thin strokes still show
+            local cw, ch = math.min(cell, sw - cx), math.min(cell, sh - cy)
+            local step = math.max(1, math.floor(cell / 12))
+            local sum, count = 0, 0
+            for py = cy, cy + ch - 1, step do
+                for px = cx, cx + cw - 1, step do
+                    sum = sum + src:getPixel(px, py):getColor8().a
+                    count = count + 1
+                end
+            end
+            bb:paintRect(cx, cy, cw, ch, Blitbuffer.Color8(math.floor(sum / math.max(count, 1))))
         end
     end
     self.bb = bb
