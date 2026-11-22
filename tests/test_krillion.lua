@@ -27,4 +27,17 @@ local c = calls[#calls]; print("complete record", c.record, c.score, table.conca
 plug:onDailyGamesKrillion(); assert(top()._name=="TextViewer" and top().text:find("already dove"))
 -- stats
 local Kr = require("dailygames/krillion"); Kr.showStats(); print(top().text)
+-- reset today's dive: replay is allowed and not submitted again
+os.date = (function(real) return function(fmt, t) if fmt == "!%Y-%m-%d" then return "2026-11-21" end return real(fmt, t) end end)(os.date)
+Kr.resetToday(); top().ok_callback()
+assert(STORE["krillion/history"]["2026-11-21"] == nil and STORE["krillion/replay_date"] == "2026-11-21")
+local before = #calls
+plug:onDailyGamesKrillion(); assert(top()._name == "ConfirmBox", "fresh intro after reset")
+top().ok_callback(); runq()
+for i = 1, 7 do answer("x" .. i); top().ok_callback(); if i < 7 then runq() end end
+for _, c in ipairs(calls) do assert(c.record == nil or c ~= calls[#calls] or #calls == before, "") end
+local completes = 0
+for i = before + 1, #calls do if calls[i].score and calls[i].record ~= nil then completes = completes + 1 end end
+assert(completes == 0, "replay must not call /api/today/complete")
+assert(top()._name == "TextViewer")
 print("KRILLION PASSED")

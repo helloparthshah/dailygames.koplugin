@@ -194,6 +194,8 @@ function Strands:buildBody(width, height)
     return top, bottom
 end
 
+function Strands:progressKey() return "strands" end
+
 function Strands:save()
     Store.saveProgress("strands", self.date, self.state)
 end
