@@ -1,56 +1,76 @@
 # Daily Games for KOReader
 
-NYT Wordle, Connections, Strands, Mini and Daily Crossword, plus the Krillion daily dive, built for e-ink.
+Fourteen daily puzzles on your e-reader, designed for black-and-white e-ink: NYT Wordle, Connections, Strands and crosswords, plus trivia, food, geography and more. Works on any KOReader device, and integrates with the ZenOS launcher on jailbroken Kindles.
+
+![Daily Games on a Kindle](docs/showcase.png)
 
 ## Install
 
-- **ZenPM (recommended):** open ZenPM > **Sources**, add
-  `https://raw.githubusercontent.com/helloparthshah/dailygames.koplugin/main/zenpm/`,
-  refresh, then install **Daily Games** (Games). ZenPM offers updates for new releases.
-  From a terminal: `zenpm repo add dailygames <url> && zenpm repo refresh && zenpm install dailygames`.
-- **Manual:** download `dailygames.koplugin.zip` from [Releases](https://github.com/helloparthshah/dailygames.koplugin/releases), unzip, and copy the `dailygames.koplugin` folder into `koreader/plugins/` (ZenFM or USB).
+**ZenPM (recommended).** Open ZenPM > **Sources**, add this URL, refresh, then install **Daily Games** from Games. ZenPM offers updates for new releases.
 
-Restart KOReader afterwards. Remove any older NYT Games plugin folder so you don't have both.
+```
+https://helloparthshah.github.io/dailygames.koplugin/
+```
+
+From a terminal: `zenpm repo add dailygames https://helloparthshah.github.io/dailygames.koplugin/ && zenpm repo refresh && zenpm install dailygames`
+
+**Manual.** Download `dailygames.koplugin.zip` from [Releases](https://github.com/helloparthshah/dailygames.koplugin/releases), unzip it, and copy the `dailygames.koplugin` folder into `koreader/plugins/` (with ZenFM or over USB). Restart KOReader.
+
+Needs Wi-Fi to fetch each day's puzzles. Progress is saved on the device, so you can leave a game and come back.
 
 ## Open
 
-- **Tools > Daily Games**: hub, each game, Krillion options, NYT-S cookie.
-- **ZenOS App Launcher:** "Daily Games" is added automatically the first time KOReader starts with the plugin (ZenPM installs are added by ZenOS itself). Remove it from the launcher and it stays removed.
-- Gestures: actions **Daily Games hub** and **Daily Games: <game>** (General section).
+- **ZenOS App Launcher:** "Daily Games" is added automatically. The hub shows ✓ for games you've finished today and … for ones you've started.
+- **KOReader menu:** Tools > Daily Games.
+- **Gestures:** bind **Daily Games hub** or **Daily Games: \<game\>** (General section).
 
-Progress for each game is saved per day, so you can leave and come back.
+Every game has a ☰ menu with **How to play** and **Restart puzzle**.
 
 ## Games
 
-| Game | Notes |
-| --- | --- |
-| Wordle | Black = right spot, gray = wrong spot, white = not in word. Keys: `■A` right, `[A]` wrong spot, `·A·` not in word. |
-| Connections | Board in NYT order. Shuffle, deselect, "one away", repeat-guess check, groups revealed when out of mistakes. |
-| Strands | Tap adjacent letters (diagonals ok). Tap the last letter to undo. Words only count in their real position. `[A]` selected, `(A)` found, `*A*` spangram, `{A}` hint. |
-| Crosswords | Tap a square to select it, tap again to switch Across/Down. Current word is shaded. Clues list jumps to a clue. Check offers to clear wrong letters. |
-| Krillion | Seven prompts, 25 s each, scored by krillion.io. Timer can be turned off. |
+| Game | Source | What you do |
+| --- | --- | --- |
+| Wordle | NYT | Guess the five-letter word in six tries. |
+| Connections | NYT | Sort 16 words into four groups. |
+| Strands | NYT | Find the theme words and the spangram in a letter grid. |
+| The Mini | NYT | 5×5 crossword. |
+| Daily Crossword | NYT | The full daily crossword (see note below). |
+| The Atlantic | The Atlantic | The Atlantic's free daily crossword. |
+| Krillion | krillion.io | Seven trivia prompts; rarer answers score more. |
+| Costcodle | costcodle.com | Guess the price of a Costco item. |
+| FoodGuessr | foodguessr.com | Three dishes; guess each one's country. |
+| Cuisine Match | foodguessr.com | Which of three dishes belongs to a country's cuisine? |
+| Plate-Off | foodguessr.com | Which of two dishes did players like more? |
+| WhereTaken | wheretaken.teuteuf.fr | Where was the photo taken? Plus landmark, capital and city bonus rounds. |
+| More/Less | lessgames.com | Which of two things has more searches, streams, rating or price? |
+| Marveldle | marveldle.com | Guess the MCU character from attribute clues. |
 
-The Daily Crossword needs an NYT subscription: set your `NYT-S` cookie under **Tools > Daily Games**. The Mini works without it.
+On e-ink, colours become shades: black means right, gray means partly right, and white or faded means wrong. Each game's **How to play** explains its marks.
 
-## Code layout
+**NYT Daily Crossword:** the full crossword is subscriber content. If it doesn't load, set your `NYT-S` cookie under Tools > Daily Games. The Mini works without it.
 
-```
-main.lua                  menu, hub, dispatcher actions
-dailygames/http.lua       JSON over HTTPS (LuaSocket/LuaSec)
-dailygames/store.lua      settings + per-day progress (settings/dailygames.lua)
-dailygames/ui.lua         FullscreenApp base class, tiles, banners, messages
-dailygames/nyt.lua        NYT fetchers, normalized data
-dailygames/wordle.lua
-dailygames/connections.lua
-dailygames/strands.lua
-dailygames/crossword.lua
-dailygames/krillion.lua
-dailygames/zenos.lua      ZenOS App Launcher entry
-```
+## Disclaimer
 
-To add a game: create `dailygames/<game>.lua` with a `launch()` function (subclass `UI.FullscreenApp` for a full-screen board) and add an entry to `GAMES` in `main.lua`.
+This is an unofficial fan project. It is not affiliated with or endorsed by The New York Times, The Atlantic, Amuse Labs, Krillion, Costcodle, FoodGuessr, Teuteuf Games, Less Games or Marveldle. All puzzles, images and game data belong to their owners and are fetched from their public sites each day; nothing is bundled with the plugin. Krillion, More/Less and Marveldle answers are checked by their sites' servers, as in their web games. Please support the original games.
+
+## Feedback
+
+Ideas for other daily games, or problems on your device? [Open an issue](https://github.com/helloparthshah/dailygames.koplugin/issues). For crashes, attaching the end of `koreader/crash.log` helps a lot.
 
 ## Development
+
+Built with [Claude Code](https://claude.com/claude-code).
+
+```
+main.lua                    menu, hub, dispatcher actions
+dailygames/ui.lua           e-ink UI: full-screen base, drawn boards, keyboard, photos
+dailygames/http.lua         JSON over HTTPS
+dailygames/store.lua        settings and per-day progress (settings/dailygames.lua)
+dailygames/<game>.lua       one file per game (nyt.lua and amuse.lua fetch crosswords)
+dailygames/zenos.lua        ZenOS App Launcher entry
+```
+
+To add a game, create `dailygames/<game>.lua` with a `launch()` function (subclass `UI.FullscreenApp` for a full-screen board) and add it to `GAMES` in `main.lua`.
 
 Tests run against stubbed KOReader modules:
 
@@ -58,4 +78,4 @@ Tests run against stubbed KOReader modules:
 for t in tests/test_*.lua; do luajit tests/run.lua "$t"; done
 ```
 
-To release, push a tag like `v1.0.1`, or run the **Release** workflow from the Actions tab with a version. It runs the tests, attaches `dailygames.koplugin.zip` to the release, and regenerates the ZenPM source in `zenpm/` (`.github/scripts/zenpm_manifest.py`).
+The **Emulator screenshots** workflow runs every game in the real KOReader desktop build. To release, run the **Release** workflow with a version: it runs the tests, attaches `dailygames.koplugin.zip`, and updates the ZenPM source (published to GitHub Pages).
