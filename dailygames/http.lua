@@ -81,4 +81,25 @@ function Http.getJson(url, headers)
     return data
 end
 
+--- Downloads a URL to a file (e.g. a product photo). Returns true or nil + error.
+function Http.download(url, path)
+    local f, open_err = io.open(path .. ".part", "wb")
+    if not f then return nil, open_err end
+    if has_socketutil then socketutil:set_timeout(15, 30) end
+    local ok, code = pcall(function()
+        return socket.skip(1, http.request {
+            url = url,
+            headers = { ["User-Agent"] = Http.user_agent },
+            sink = ltn12.sink.file(f), -- closes f when done
+        })
+    end)
+    if has_socketutil then socketutil:reset_timeout() end
+    if not ok or code ~= 200 then
+        os.remove(path .. ".part")
+        return nil, ok and ("HTTP " .. tostring(code)) or tostring(code)
+    end
+    os.rename(path .. ".part", path)
+    return true
+end
+
 return Http
