@@ -1,6 +1,6 @@
 # Daily Games for KOReader
 
-Fifteen daily puzzles on your e-reader, designed for black-and-white e-ink: NYT Wordle, Connections, Strands and crosswords, plus trivia, food, geography and more. Works on any KOReader device, and integrates with the ZenOS launcher on jailbroken Kindles.
+Fifteen daily puzzles, plus the offline card game Sabacc, on your e-reader, designed for black-and-white e-ink: NYT Wordle, Connections, Strands and crosswords, plus trivia, food, geography and more. Works on any KOReader device, and integrates with the ZenOS launcher on jailbroken Kindles.
 
 ![Daily Games on a Kindle](docs/showcase.png)
 
@@ -55,6 +55,7 @@ Endless games are saved separately, so they never touch today's puzzle or its âœ
 | More/Less | lessgames.com | Which of two things has more searches, streams, rating or price? |
 | Marveldle | marveldle.com | Guess the MCU character from attribute clues. |
 | Brandle | capitalle.app | Guess the brand from a blurred logo, with industry, country, founding year and revenue hints. |
+| Sabacc | built in | Card game against three computer players: get your hand to zero. Works offline; play as many hands as you like. |
 
 On e-ink, colours become shades: black means right, gray means partly right, and white or faded means wrong. Each game's **How to play** explains its marks.
 
@@ -77,7 +78,7 @@ main.lua                    menu, hub, dispatcher actions
 dailygames/ui.lua           e-ink UI: full-screen base, drawn boards, keyboard, photos
 dailygames/http.lua         JSON over HTTPS
 dailygames/store.lua        settings and per-day progress (settings/dailygames.lua)
-dailygames/<game>.lua       one file per game (nyt.lua and amuse.lua fetch crosswords)
+dailygames/<game>.lua       one file per game (nyt.lua and amuse.lua fetch crosswords; sabacc.lua is offline)
 dailygames/zenos.lua        ZenOS App Launcher entry
 ```
 
