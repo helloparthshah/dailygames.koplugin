@@ -116,7 +116,7 @@ end
 
 local App = UI.FullscreenApp:extend {
     name = "costcodle_app",
-    help_text = [[Guess the price of today's Costco item. You have 6 guesses.
+    help_text = [[Guess the price of the Costco item. You have 6 guesses.
 
 Each guess tells you to go Higher or Lower.
 Gray row: within 25% ("close").
@@ -132,7 +132,7 @@ function App:setup()
 end
 
 function App:getTitle()
-    return "Costcodle #" .. tostring(self.number)
+    return self.number and ("Costcodle #" .. tostring(self.number)) or "Costcodle"
 end
 
 function App:isWon()
@@ -191,7 +191,7 @@ function App:progressKey() return "costcodle" end
 function App:menuItems()
     if not self:isOver() then return {} end
     return { { text = "Copy share text", callback = function()
-        local lines = { string.format("Costcodle #%s %s/6", tostring(self.number),
+        local lines = { string.format("Costcodle%s %s/6", self.number and (" #" .. self.number) or "",
             self:isWon() and #self.state.guesses or "X") }
         for _, g in ipairs(self.state.guesses) do
             local j = Costcodle.judge(g, self.price)
@@ -212,7 +212,7 @@ function App:onKey(k)
         if not v or v <= 0 then return self:setStatus("Type a price first") end
         table.insert(self.state.guesses, v)
         self.input = ""
-        Store.saveProgress("costcodle", self.date, self:markDone())
+        Store.saveProgress(self:storeKey(), self.date, self:markDone())
         self.status = self:isOver() and self:resultText() or ""
     else
         if k == "." and self.input:find("%.") then return end
@@ -223,38 +223,84 @@ function App:onKey(k)
     self:refresh()
 end
 
-function Costcodle.launch(date)
-    local number = Costcodle.gameNumber(date)
-    local id = Costcodle.productId(number)
-    local cache = DataStorage:getDataDir() .. "/cache"
-    local image_path = string.format("%s/costcodle-%d.jpg", cache, id)
+--- Catalog ids of earlier days' items (endless mode picks from these).
+function Costcodle.pastIds(catalog, date)
+    local today = Costcodle.productId(Costcodle.gameNumber(date))
+    local ids = {}
+    for key, entry in pairs(catalog) do
+        local id = tonumber(tostring(key):match("^game%-(%d+)$"))
+        if id and id < today and type(entry) == "table" and parsePrice(entry.price) then
+            table.insert(ids, id)
+        end
+    end
+    table.sort(ids)
+    return ids
+end
 
-    local item, err = UI.withBusy("Loading Costcodle…", function()
+local function cachePath(id)
+    return string.format("%s/cache/costcodle-%d.jpg", DataStorage:getDataDir(), id)
+end
+
+-- Loads catalog item `id` (or, with pick(catalog), the id it returns) and its photo.
+local function load(id, pick)
+    return UI.withBusy("Loading Costcodle…", function()
         local catalog, e = Http.getJson("https://costcodle.com/games.json")
         if not catalog then return nil, e end
-        local entry = catalog["game-" .. id]
+        id = id or pick(catalog)
+        local entry = id and catalog["game-" .. id]
         if type(entry) ~= "table" or not parsePrice(entry.price) then
-            return nil, "no item for game " .. number
+            return nil, "no item " .. tostring(id)
         end
-        if entry.image and not exists(image_path) then
+        local path = cachePath(id)
+        if entry.image and not exists(path) then
+            local cache = DataStorage:getDataDir() .. "/cache"
             os.execute("mkdir -p '" .. cache .. "'")
-            -- drop earlier days' photos so the cache doesn't grow
+            -- drop earlier photos so the cache doesn't grow
             os.execute("rm -f '" .. cache .. "'/costcodle-*.jpg")
-            Http.download(entry.image, image_path)
+            Http.download(entry.image, path)
         end
-        return entry
+        return entry, id
     end)
-    if not item then
-        UI.error("Couldn't load Costcodle.\n" .. tostring(err))
-        return
-    end
+end
+
+local function show(item, id, opts)
+    local path = cachePath(id)
     UIManager:show(App:new {
-        date = date,
-        number = number,
+        date = opts.date,
+        number = opts.number,
         item = item,
         price = parsePrice(item.price),
-        image_path = exists(image_path) and image_path or nil,
-        state = Store.loadProgress("costcodle", date),
+        image_path = exists(path) and path or nil,
+        state = opts.state,
+        on_next = opts.on_next,
+    })
+end
+
+function Costcodle.launch(date)
+    local number = Costcodle.gameNumber(date)
+    local item, id, crash = load(Costcodle.productId(number))
+    if not item then return UI.error("Couldn't load Costcodle.\n" .. tostring(id or crash)) end
+    show(item, id, { date = date, number = number, state = Store.loadProgress("costcodle", date) })
+end
+
+--- Endless: a random item from earlier days. An unfinished one is resumed.
+function Costcodle.launchEndless(date)
+    local saved = Store.get("progress/costcodle_endless")
+    local resume = type(saved) == "table" and type(saved.state) == "table" and not saved.state.done
+        and tonumber(tostring(saved.date):match("^item%-(%d+)$"))
+    math.randomseed(os.time())
+    local item, id, crash = load(resume, function(catalog)
+        local ids = Costcodle.pastIds(catalog, date)
+        return #ids > 0 and ids[math.random(#ids)] or nil
+    end)
+    if not item then return UI.error("Couldn't load Costcodle.\n" .. tostring(id or crash)) end
+    show(item, id, {
+        date = "item-" .. id,
+        state = resume and saved.state or nil,
+        on_next = function()
+            Store.clearProgress("costcodle_endless")
+            Costcodle.launchEndless(date)
+        end,
     })
 end
 

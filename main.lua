@@ -55,20 +55,33 @@ local GAMES = {
     { id = "crossword", event = "Crossword", text = _("Daily Crossword"),
       launch = function() Crossword.launch("daily", nytCookie()) end },
     { id = "atlantic", event = "Atlantic", text = _("The Atlantic Crossword"),
-      launch = function() Crossword.launch("atlantic") end },
+      launch = function() Crossword.launch("atlantic") end,
+      endless = function() Crossword.launchAtlanticEndless() end },
     { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end },
     { id = "cuisinematch", event = "CuisineMatch", text = _("FoodGuessr: Cuisine Match"),
-      launch = function() FoodModes.launchCuisineMatch() end },
+      launch = function() FoodModes.launchCuisineMatch() end,
+      endless = function() FoodModes.launchCuisineMatchEndless() end },
     { id = "plateoff", event = "PlateOff", text = _("FoodGuessr: Plate-Off"), launch = function() FoodModes.launchPlateOff() end },
     { id = "moreless", event = "MoreLess", text = _("More/Less"), launch = function() MoreLess.launch() end },
     { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), launch = function() Marveldle.launch() end },
     { id = "wheretaken", event = "WhereTaken", text = _("WhereTaken"), launch = function() WhereTaken.launch(today()) end },
-    { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end },
+    { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end,
+      endless = function() Costcodle.launchEndless(today()) end },
     -- Krillion stays last (it has its own submenu).
     { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },
 }
 
 local KRILLION = GAMES[#GAMES]
+
+-- Games with an endless mode (unlimited puzzles the source offers for free),
+-- launched like a game of their own.
+local ENDLESS = {}
+for __, game in ipairs(GAMES) do
+    if game.endless then
+        table.insert(ENDLESS, { id = game.id .. "_endless", event = game.event .. "Endless",
+            text = game.text .. _(" (endless)"), launch = game.endless })
+    end
+end
 
 -- Store progress key for each game (see each game's progressKey()).
 local PROGRESS_KEY = {
@@ -147,13 +160,15 @@ function DailyGames:onDispatcherRegisterActions()
         title = _("Daily Games hub"),
         general = true,
     })
-    for __, game in ipairs(GAMES) do
-        Dispatcher:registerAction("dailygames_" .. game.id, {
-            category = "none",
-            event = "DailyGames" .. game.event,
-            title = _("Daily Games: ") .. game.text,
-            general = true,
-        })
+    for __, list in ipairs { GAMES, ENDLESS } do
+        for __, game in ipairs(list) do
+            Dispatcher:registerAction("dailygames_" .. game.id, {
+                category = "none",
+                event = "DailyGames" .. game.event,
+                title = _("Daily Games: ") .. game.text,
+                general = true,
+            })
+        end
     end
 end
 
@@ -168,10 +183,12 @@ function DailyGames:onDailyGamesHub()
     return true
 end
 
-for __, game in ipairs(GAMES) do
-    DailyGames["onDailyGames" .. game.event] = function(self)
-        self:launchGame(game)
-        return true
+for __, list in ipairs { GAMES, ENDLESS } do
+    for __, game in ipairs(list) do
+        DailyGames["onDailyGames" .. game.event] = function(self)
+            self:launchGame(game)
+            return true
+        end
     end
 end
 
@@ -188,8 +205,36 @@ function DailyGames:showHub()
             end,
         } })
     end
+    table.insert(buttons, { {
+        text = _("Endless modes ›"),
+        callback = function()
+            UIManager:close(dialog)
+            self:showEndless()
+        end,
+    } })
     table.insert(buttons, { { text = _("Close"), callback = function() UIManager:close(dialog) end } })
     dialog = ButtonDialog:new { title = _("Daily Games") .. " · " .. today(), buttons = buttons }
+    UIManager:show(dialog)
+end
+
+--- Endless modes: play as many puzzles as you like (separate from today's).
+function DailyGames:showEndless()
+    local dialog
+    local buttons = {}
+    for __, game in ipairs(ENDLESS) do
+        table.insert(buttons, { {
+            text = game.text,
+            callback = function()
+                UIManager:close(dialog)
+                self:launchGame(game)
+            end,
+        } })
+    end
+    table.insert(buttons, { { text = _("‹ Back"), callback = function()
+        UIManager:close(dialog)
+        self:showHub()
+    end } })
+    dialog = ButtonDialog:new { title = _("Endless modes"), buttons = buttons }
     UIManager:show(dialog)
 end
 
@@ -225,6 +270,12 @@ function DailyGames:addToMainMenu(menu_items)
             table.insert(games_menu, { text = game.text, callback = function() self:launchGame(game) end })
         end
     end
+
+    local endless_menu = {}
+    for __, game in ipairs(ENDLESS) do
+        table.insert(endless_menu, { text = game.text, callback = function() self:launchGame(game) end })
+    end
+    table.insert(games_menu, { text = _("Endless modes"), sub_item_table = endless_menu })
 
     table.insert(games_menu, {
         text = _("Krillion"),

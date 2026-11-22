@@ -152,11 +152,11 @@ local function fetchText(url)
     return data
 end
 
---- Fetches the newest published puzzle of a series.
--- site: e.g. "atlantic"; set: e.g. "atlantic". Returns crossword data or nil + error.
-function Amuse.latest(site, set)
-    local base = "https://cdn3.amuselabs.com/" .. site
-    local picker, err = fetchText(base .. "/date-picker?set=" .. set)
+local function base(site) return "https://cdn3.amuselabs.com/" .. site end
+
+--- Puzzle ids the date picker lists (newest first; The Atlantic shows ~12).
+function Amuse.list(site, set)
+    local picker, err = fetchText(base(site) .. "/date-picker?set=" .. set)
     if not picker then return nil, err end
     local pp = params(picker)
     local ids = {}
@@ -165,21 +165,38 @@ function Amuse.latest(site, set)
         if id then table.insert(ids, id) end
     end
     if #ids == 0 then return nil, "no puzzles listed" end
+    return ids
+end
+
+--- Date ("YYYY-MM-DD") in an id like "atlantic_20261122", or nil.
+function Amuse.idDate(id)
+    local y, m, d = tostring(id):match("(%d%d%d%d)(%d%d)(%d%d)$")
+    return y and (y .. "-" .. m .. "-" .. d) or nil
+end
+
+--- Fetches one puzzle by id. Returns crossword data or nil + error.
+function Amuse.fetch(site, set, id)
+    local page, err = fetchText(base(site) .. "/crossword?id=" .. id .. "&set=" .. set)
+    local q = params(page)
+    local puzzle = q and q.rawc and Amuse.decode(q.rawc)
+    if not puzzle then return nil, err or "couldn't decode the puzzle" end
+    local data = Amuse.toCrossword(puzzle)
+    data.id = id
+    data.date = Amuse.idDate(id) or os.date("%Y-%m-%d")
+    return data
+end
+
+--- Fetches the newest published puzzle of a series.
+-- site: e.g. "atlantic"; set: e.g. "atlantic". Returns crossword data or nil + error.
+function Amuse.latest(site, set)
+    local ids, err = Amuse.list(site, set)
+    if not ids then return nil, err end
     for i = 1, math.min(2, #ids) do
-        local page = fetchText(base .. "/crossword?id=" .. ids[i] .. "&set=" .. set)
-        local q = params(page)
-        if q and q.rawc then
-            local puzzle = Amuse.decode(q.rawc)
-            if puzzle then
-                local data = Amuse.toCrossword(puzzle)
-                data.id = ids[i]
-                data.date = ids[i]:match("(%d%d%d%d)(%d%d)(%d%d)$")
-                    and ids[i]:gsub("^.-(%d%d%d%d)(%d%d)(%d%d)$", "%1-%2-%3") or os.date("%Y-%m-%d")
-                return data
-            end
-        end
+        local data
+        data, err = Amuse.fetch(site, set, ids[i])
+        if data then return data end
     end
-    return nil, "couldn't decode the puzzle"
+    return nil, err
 end
 
 return Amuse

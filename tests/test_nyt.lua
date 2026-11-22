@@ -148,7 +148,7 @@ plug:onDailyGamesConnections(); local capp = top(); capp:revealRest(); capp:save
 assert(STORE["progress/connections"].state.done == true, "connections marks done"); capp:onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==15); hub.buttons[15][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==16, #hub.buttons); hub.buttons[16][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
@@ -163,6 +163,27 @@ for _, k in ipairs { "5", ".", ".", "9", "9", "9", "ENTER" } do app:onKey(k) end
 assert(app.state.guesses[2] == 5.99 and app:isWon(), tostring(app.state.guesses[2]))
 print("costcodle:", app.status)
 app:onClose()
+-- COSTCODLE ENDLESS: random earlier item, own progress slot, resumes, Next puzzle
+local today_id = C.productId(C.gameNumber(d))
+ROUTES["https://costcodle.com/games.json"] = function() return {
+    ["game-" .. today_id] = { name = "Today", price = "$5.99" },
+    ["game-7"] = { name = "Old Item", price = "$10.00" }, ["game-8"] = { name = "Bad", price = "" } }, 200 end
+assert(#C.pastIds(ROUTES["https://costcodle.com/games.json"](), d) == 1)
+plug:onDailyGamesCostcodleEndless(); app = top()
+assert(app.item.name == "Old Item" and app.on_next and app:getTitle() == "Costcodle", app.item.name)
+local daily_before = STORE["progress/costcodle"]
+for _, k in ipairs { "3", "ENTER" } do app:onKey(k) end
+assert(STORE["progress/costcodle_endless"].date == "item-7" and STORE["progress/costcodle"] == daily_before, "endless keeps its own slot")
+app:onClose()
+plug:onDailyGamesCostcodleEndless(); app = top(); assert(#app.state.guesses == 1, "unfinished endless item resumed")
+for _, k in ipairs { "1", "0", "ENTER" } do app:onKey(k) end
+assert(app:isWon() and STORE["progress/costcodle_endless"].state.done)
+local function findText(w, t) if type(w) ~= "table" then return false end
+    for _, row in ipairs(w.buttons or {}) do for _, b in ipairs(row) do if b.text == t then return b end end end
+    for _, c in ipairs(w) do local r = findText(c, t) if r then return r end end return false end
+local nb = findText(app, "Next puzzle ›"); assert(nb, "Next puzzle button after finishing")
+nb.callback(); assert(top() ~= app); runq()
+app = top(); assert(app._name == "costcodle_app" and #app.state.guesses == 0, "next puzzle starts fresh"); app:onClose()
 -- FOODGUESSR
 local F = require("dailygames/foodguessr")
 local sug = F.suggest("mex"); assert(sug[1] == "MX", tostring(sug[1]))
@@ -300,6 +321,22 @@ app:answerBonus(wrong); app:answerBonus(wrong); assert(not app.state.stars.capit
 app:nextPhase(); assert(app.state.phase == "city")
 app:nextPhase(); assert(app.state.phase == "done")
 app:onClose()
+-- ATLANTIC ENDLESS: random recent puzzle other than today's; resumes; own slot
+local Am = require("dailygames/amuse")
+local real_list, real_fetch = Am.list, Am.fetch
+local fetched = {}
+Am.list = function() return { "atlantic_20261122", "atlantic_20261121" } end
+Am.fetch = function(_, _, id)
+    fetched[#fetched + 1] = id
+    return { date = Am.idDate(id), width = 1, height = 1, cells = { { answer = "A", clues = { 1 } } },
+        clues = { { label = "1", dir = "Across", text = "First letter", cells = { 1 } } } }
+end
+plug:onDailyGamesAtlanticEndless(); app = top()
+assert(app._name ~= nil and app.on_next and app.date == "2026-11-21", tostring(app.date))
+app:onClose()
+assert(STORE["progress/crossword_atlantic_endless"].date == "2026-11-21")
+plug:onDailyGamesAtlanticEndless(); assert(fetched[#fetched] == "atlantic_20261121", "resumes the unfinished puzzle"); top():onClose()
+Am.list, Am.fetch = real_list, real_fetch
 -- FOODGUESSR MODES
 local FM = require("dailygames/foodmodes")
 local u = FM.url("cuisineMatch.today", 1795330000)
@@ -325,6 +362,16 @@ for _, t in ipairs(texts) do if t:find("Sharbat · C1, C2, C3 +22 more", 1, true
 assert(found, "caption cut to 3 countries: " .. table.concat(texts, " | "))
 app:advance(); app:pick(1); assert(app:result(2).points == 5000 and app:score() == 7000)
 app:advance(); assert(app:isOver()); app:onClose()
+-- CUISINE MATCH ENDLESS (FoodGuessr's own cuisineMatch.random)
+assert(FM.url("cuisineMatch.random", false):find("input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D", 1, true))
+ROUTES[FM.url("cuisineMatch.random", false)] = function()
+    return { { result = { data = { json = { id = "abc", rounds = {
+        { country = { name = "Japan" }, correctFoodIndex = 0, foods = { food("Natto", "Japan"), food("Tacos", "Mexico"), food("Pho", "Vietnam") } },
+    } } } } } }, 200 end
+local cm_daily = STORE["progress/cuisinematch"]
+plug:onDailyGamesCuisineMatchEndless(); app = top(); assert(app._name == "cuisinematch_app" and app.date == "random-abc")
+app:pick(0); app:advance(); assert(app:isOver() and STORE["progress/cuisinematch"] == cm_daily)
+app:onClose()
 ROUTES[FM.url("plateOff.today")] = function()
     return { { result = { data = { json = { date = d .. "T00:00:00.000Z", rounds = {
         { leftFood = { name = "Bitterballen", yumCount = 2289, yuckCount = 279 }, rightFood = { name = "Lihapiirakka", yumCount = 2647, yuckCount = 473 } },

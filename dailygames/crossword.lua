@@ -153,7 +153,7 @@ function Crossword:isComplete() return self:isSolved() end
 function Crossword:progressKey() return "crossword_" .. self.kind end
 
 function Crossword:save(defer)
-    Store.saveProgress("crossword_" .. self.kind, self.date, self:markDone(), defer)
+    Store.saveProgress(self:storeKey(), self.date, self:markDone(), defer)
 end
 
 function Crossword:onExit()
@@ -415,6 +415,19 @@ function Crossword:buildBody(width, height)
     return top, bottom
 end
 
+local function show(kind, data, state, on_next)
+    UIManager:show(Crossword:new {
+        kind = kind,
+        date = data.date,
+        width = data.width,
+        height = data.height,
+        cells = data.cells,
+        clues = data.clues,
+        state = state,
+        on_next = on_next,
+    })
+end
+
 --- kind: "mini" / "daily" (NYT) or "atlantic" (Amuse Labs).
 function Crossword.launch(kind, cookie)
     local data, err = UI.withBusy("Loading crossword…", function()
@@ -428,15 +441,31 @@ function Crossword.launch(kind, cookie)
         UI.error("Couldn't load the crossword.\n" .. tostring(err) .. hint)
         return
     end
-    UIManager:show(Crossword:new {
-        kind = kind,
-        date = data.date,
-        width = data.width,
-        height = data.height,
-        cells = data.cells,
-        clues = data.clues,
-        state = Store.loadProgress("crossword_" .. kind, data.date),
-    })
+    show(kind, data, Store.loadProgress("crossword_" .. kind, data.date))
+end
+
+--- Endless: a random puzzle from The Atlantic's free recent ones (the date
+-- picker's list, minus today's). An unfinished one is resumed.
+function Crossword.launchAtlanticEndless()
+    local saved = Store.get("progress/crossword_atlantic_endless")
+    local resume = type(saved) == "table" and type(saved.state) == "table" and not saved.state.done
+        and saved.date
+    math.randomseed(os.time())
+    local data, err, crash = UI.withBusy("Loading crossword…", function()
+        local id = resume and "atlantic_" .. resume:gsub("-", "")
+        if not id then
+            local ids, e = Amuse.list("atlantic", "atlantic")
+            if not ids then return nil, e end
+            if #ids > 1 then table.remove(ids, 1) end
+            id = ids[math.random(#ids)]
+        end
+        return Amuse.fetch("atlantic", "atlantic", id)
+    end)
+    if not data then return UI.error("Couldn't load the crossword.\n" .. tostring(err or crash)) end
+    show("atlantic", data, resume and saved.state or nil, function()
+        Store.clearProgress("crossword_atlantic_endless")
+        Crossword.launchAtlanticEndless()
+    end)
 end
 
 return Crossword

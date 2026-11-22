@@ -31,10 +31,14 @@ local function urlencode(s)
 end
 
 --- tRPC URL for a FoodGuessr daily procedure (date = today's UTC midnight).
+-- Pass now = false for procedures without input (cuisineMatch.random).
 function FoodModes.url(proc, now)
-    now = now or os.time()
-    local midnight = now - now % 86400
-    local input = string.format('{"0":{"json":{"date":%d000,"intent":"play"}}}', midnight)
+    local input = '{"0":{"json":null}}'
+    if now ~= false then
+        now = now or os.time()
+        local midnight = now - now % 86400
+        input = string.format('{"0":{"json":{"date":%d000,"intent":"play"}}}', midnight)
+    end
     return "https://www.foodguessr.com/api/trpc/" .. proc .. "?batch=1&input=" .. urlencode(input)
 end
 
@@ -200,14 +204,14 @@ function CuisineMatch:pick(k)
     else
         self.status = "One more chance!"
     end
-    Store.saveProgress("cuisinematch", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
     self:refresh()
 end
 
 function CuisineMatch:advance()
     self.state.round = self.state.round + 1
     self.status = ""
-    Store.saveProgress("cuisinematch", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
     self:refresh()
 end
 
@@ -340,10 +344,10 @@ local function prune()
     end
 end
 
-local function load(proc, label, prepare)
+local function load(proc, label, prepare, now)
     return UI.withBusy("Loading " .. label .. "…", function()
         prune()
-        local data, err = Http.getJson(FoodModes.url(proc))
+        local data, err = Http.getJson(FoodModes.url(proc, now))
         if not data then return nil, err end
         local today = data[1] and data[1].result and data[1].result.data and data[1].result.data.json
         if type(today) ~= "table" or type(today.rounds) ~= "table" then return nil, "unexpected data" end
@@ -351,18 +355,31 @@ local function load(proc, label, prepare)
     end)
 end
 
+local function cuisinePhotos(t)
+    for _, r in ipairs(t.rounds) do
+        r.paths = {}
+        for k, food in ipairs(r.foods or {}) do r.paths[k] = photo(food) end
+    end
+    return t
+end
+
 function FoodModes.launchCuisineMatch()
-    local today, err = load("cuisineMatch.today", "Cuisine Match", function(t)
-        for _, r in ipairs(t.rounds) do
-            r.paths = {}
-            for k, food in ipairs(r.foods or {}) do r.paths[k] = photo(food) end
-        end
-        return t
-    end)
+    local today, err = load("cuisineMatch.today", "Cuisine Match", cuisinePhotos)
     if not today then return UI.error("Couldn't load Cuisine Match.\n" .. tostring(err)) end
     local date = tostring(today.date or ""):sub(1, 10)
     UIManager:show(CuisineMatch:new {
         date = date, rounds = today.rounds, state = Store.loadProgress("cuisinematch", date),
+    })
+end
+
+--- Endless: FoodGuessr's own random Cuisine Match (cuisineMatch.random).
+function FoodModes.launchCuisineMatchEndless()
+    local game, err = load("cuisineMatch.random", "Cuisine Match", cuisinePhotos, false)
+    if not game then return UI.error("Couldn't load Cuisine Match.\n" .. tostring(err)) end
+    Store.clearProgress("cuisinematch_endless")
+    UIManager:show(CuisineMatch:new {
+        date = "random-" .. tostring(game.id or os.time()), rounds = game.rounds,
+        on_next = FoodModes.launchCuisineMatchEndless,
     })
 end
 
