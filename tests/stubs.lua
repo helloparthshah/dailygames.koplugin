@@ -57,6 +57,7 @@ local M = {
  ["logger"]={warn=print}, ["gettext"]=function(s) return s end,
 }
 for k,v in pairs(M) do package.loaded[k]=v end
+package.loaded["json"] = dofile(PLUGDIR .. "/tests/vendor/json.lua")
 -- fake HTTP: route by url
 ROUTES = {}
 package.loaded["dailygames/http"] = {
