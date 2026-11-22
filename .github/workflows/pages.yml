@@ -1,0 +1,50 @@
+name: ZenPM source on GitHub Pages
+
+# Publishes zenpm/ (manifest.json, versions.json) at
+# https://<owner>.github.io/<repo>/ so ZenPM users can add a short source URL.
+# Runs when zenpm/ changes, after each release, or by hand.
+on:
+  push:
+    branches: [main]
+    paths: ["zenpm/**"]
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Build site
+        run: |
+          mkdir -p site
+          cp zenpm/manifest.json zenpm/versions.json site/
+          cat > site/index.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>Daily Games ZenPM source</title>
+          <p>ZenPM source for <a href="https://github.com/helloparthshah/dailygames.koplugin">Daily Games</a>.
+          Add this page's URL in ZenPM &gt; Sources.</p>
+          HTML
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
