@@ -10,14 +10,14 @@
       "id": "dailygames",
       "name": "Daily Games",
       "version": "1.10.1",
-      "description": "Daily puzzle games: NYT Wordle, Connections, Strands, Mini and Daily Crossword, plus Krillion trivia. Adds itself to the ZenOS App Launcher.",
+      "description": "Daily puzzles designed for e-ink: NYT Wordle, Connections, Strands, Mini and Daily Crossword, The Atlantic crossword, Krillion, FoodGuessr (plus Cuisine Match and Plate-Off), Costcodle, WhereTaken, More/Less, Marveldle and Brandle, with endless modes. Adds itself to the ZenOS App Launcher.",
       "author": "helloparthshah",
       "category": "games",
       "platforms": [
         "koreader"
       ],
       "dependencies": [],
-      "size": 106141,
+      "size": "106141",
       "source": "https://github.com/helloparthshah/dailygames.koplugin",
       "source_asset": "dailygames.koplugin.zip",
       "source_type": "release",
