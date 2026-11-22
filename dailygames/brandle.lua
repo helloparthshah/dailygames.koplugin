@@ -219,11 +219,11 @@ function Logo:setup()
     end
     local cells = math.max(3, math.floor(96 / (blur * 1.15)))
     local cell = math.max(1, math.ceil(math.max(sw, sh) / cells))
-    local bb = Blitbuffer.new(sw, sh, Blitbuffer.TYPE_BB8)
-    bb:fill(Blitbuffer.COLOR_WHITE)
+    -- average each square (sampled on a grid) so thin strokes still show,
+    -- then stretch the contrast: averaging washes logos out on e-ink
+    local avgs, lo, hi = {}, 255, 0
     for cy = 0, sh - 1, cell do
         for cx = 0, sw - 1, cell do
-            -- average the square (sampled on a grid) so thin strokes still show
             local cw, ch = math.min(cell, sw - cx), math.min(cell, sh - cy)
             local step = math.max(1, math.floor(cell / 12))
             local sum, count = 0, 0
@@ -233,8 +233,17 @@ function Logo:setup()
                     count = count + 1
                 end
             end
-            bb:paintRect(cx, cy, cw, ch, Blitbuffer.Color8(math.floor(sum / math.max(count, 1))))
+            local v = sum / math.max(count, 1)
+            avgs[#avgs + 1] = { cx, cy, cw, ch, v }
+            lo, hi = math.min(lo, v), math.max(hi, v)
         end
+    end
+    local bb = Blitbuffer.new(sw, sh, Blitbuffer.TYPE_BB8)
+    bb:fill(Blitbuffer.COLOR_WHITE)
+    for _, a in ipairs(avgs) do
+        local v = a[5]
+        if hi - lo > 8 then v = (v - lo) / (hi - lo) * 255 end
+        bb:paintRect(a[1], a[2], a[3], a[4], Blitbuffer.Color8(math.floor(v + 0.5)))
     end
     self.bb = bb
 end
