@@ -373,7 +373,10 @@ end
 
 function Crossword:buildBody(width, height)
     local w = math.floor(width * 0.96)
-    local row_h = UI.px(62)
+    -- Big grids (15x15, 21x21) get a slightly shorter keyboard and clue bar so
+    -- the squares stay large enough to read and tap.
+    local big = self.width >= 13
+    local row_h = UI.px(big and 52 or 62)
     local nav = ButtonTable:new {
         width = w,
         show_parent = self,
@@ -397,7 +400,7 @@ function Crossword:buildBody(width, height)
     }
     local bottom = VerticalGroup:new { align = "center", nav, UI.span(6), keyboard }
     local status = self:statusLine(w)
-    local clue_h = UI.px(96)
+    local clue_h = UI.px(big and 80 or 96)
     local grid_h = height - bottom:getSize().h - clue_h - status:getSize().h - UI.px(24)
     local grid = Grid:new { width = w, height = grid_h, app = self }
     local clue = ClueBar:new { width = w, height = clue_h, app = self }
