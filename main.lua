@@ -4,7 +4,9 @@ Crossword, plus Krillion.
 
 Entry points:
   * Main menu: Tools > Daily Games
-  * Dispatcher actions (gestures, ZenOS launcher): "Daily Games hub" and one per game
+  * Dispatcher actions (gestures): "Daily Games hub" and one per game
+  * ZenOS App Launcher: an entry is added on first start (see dailygames/zenos.lua).
+    The launcher calls DailyGames:open().
 
 Each game lives in dailygames/<game>.lua and exposes launch(...).
 ]]
@@ -26,6 +28,7 @@ local Store = require("dailygames/store")
 local Strands = require("dailygames/strands")
 local UI = require("dailygames/ui")
 local Wordle = require("dailygames/wordle")
+local ZenOS = require("dailygames/zenos")
 
 local function today()
     return os.date("%Y-%m-%d")
@@ -59,6 +62,28 @@ function DailyGames:init()
     math.randomseed(os.time() + math.floor((os.clock() * 1e6) % 1e6))
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
+    -- Wait a tick so ZenOS (which may load after us) is initialized.
+    UIManager:nextTick(function() self:addToZenOSLauncher() end)
+end
+
+--- Adds "Daily Games" to the ZenOS App Launcher once. If the user removes it
+-- later it stays removed. Retried on later starts until ZenOS is found.
+function DailyGames:addToZenOSLauncher()
+    if Store.get("zenos_launcher_added") then return end
+    local result = ZenOS.addLauncherEntry {
+        key = self.name,
+        method = "open",
+        label = _("Daily Games"),
+        icon = "quick_puzzle",
+    }
+    if result then
+        Store.set("zenos_launcher_added", true)
+    end
+end
+
+--- Entry point for the ZenOS App Launcher (and anything else that opens plugins).
+function DailyGames:open()
+    self:showHub()
 end
 
 function DailyGames:onDispatcherRegisterActions()
@@ -78,8 +103,9 @@ function DailyGames:onDispatcherRegisterActions()
     end
 end
 
---- Launches a game once Wi-Fi is up.
-function DailyGames:launch(game)
+--- Starts a game once Wi-Fi is up. (Not named "launch": ZenOS treats
+-- launch/open/show methods as the plugin's entry point.)
+function DailyGames:launchGame(game)
     NetworkMgr:runWhenOnline(game.launch)
 end
 
@@ -90,7 +116,7 @@ end
 
 for __, game in ipairs(GAMES) do
     DailyGames["onDailyGames" .. game.event] = function(self)
-        self:launch(game)
+        self:launchGame(game)
         return true
     end
 end
@@ -103,7 +129,7 @@ function DailyGames:showHub()
             text = game.text,
             callback = function()
                 UIManager:close(dialog)
-                self:launch(game)
+                self:launchGame(game)
             end,
         } })
     end
@@ -141,7 +167,7 @@ function DailyGames:addToMainMenu(menu_items)
     }
     for __, game in ipairs(GAMES) do
         if game ~= KRILLION then
-            table.insert(games_menu, { text = game.text, callback = function() self:launch(game) end })
+            table.insert(games_menu, { text = game.text, callback = function() self:launchGame(game) end })
         end
     end
 
@@ -149,7 +175,7 @@ function DailyGames:addToMainMenu(menu_items)
         text = _("Krillion"),
         separator = true,
         sub_item_table = {
-            { text = _("Play today's dive"), callback = function() self:launch(KRILLION) end },
+            { text = _("Play today's dive"), callback = function() self:launchGame(KRILLION) end },
             { text = _("Statistics"), keep_menu_open = true, callback = Krillion.showStats },
             { text = _("Last result / share text"), keep_menu_open = true, callback = Krillion.showLastResult },
             {

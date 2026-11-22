@@ -18,6 +18,7 @@ function UIManager:close(w) for i,x in ipairs(SHOWN) do if x==w then table.remov
 function UIManager:forceRePaint() end
 function UIManager:setDirty() end
 function UIManager:scheduleIn(t, f) table.insert(QUEUE, f) end
+function UIManager:nextTick(f) table.insert(QUEUE, f) end
 function UIManager:unschedule(f) for i=#QUEUE,1,-1 do if QUEUE[i]==f then table.remove(QUEUE,i) end end end
 local InputDialog = W("InputDialog")
 function InputDialog:init() self.title_bar = {setTitle=function(tb, t) table.insert(LOG, "title "..t) end} end
