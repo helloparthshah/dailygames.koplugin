@@ -235,6 +235,14 @@ local STEPS = {
     function() shot("costcodle_guesses") end,
     function() closeAllGames() end,
 
+    -- Sabacc (offline): start, pick a card, then gain and check
+    function() mod("sabacc").launch() end,
+    function() local app = top(); app:pick(1) end,
+    function() shot("sabacc_start") end,
+    function() local app = top(); app:doAct("gain"); app:doBet("check") end,
+    function() shot("sabacc_round2") end,
+    function() closeAllGames() end,
+
     -- Endless modes: menu, a solved Costcodle (Next puzzle button), Cuisine Match, Atlantic
     function() plugin():showEndless() end,
     function() shot("endless_menu") end,

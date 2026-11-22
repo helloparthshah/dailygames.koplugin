@@ -1,6 +1,6 @@
 --[[
 Daily Games for KOReader: NYT Wordle, Connections, Strands, Mini and Daily
-Crossword, plus Krillion.
+Crossword, plus Krillion and the offline card game Sabacc.
 
 Entry points:
   * Main menu: Tools > Daily Games
@@ -30,6 +30,7 @@ local FoodModes = require("dailygames/foodmodes")
 local Krillion = require("dailygames/krillion")
 local Marveldle = require("dailygames/marveldle")
 local MoreLess = require("dailygames/moreless")
+local Sabacc = require("dailygames/sabacc")
 local Store = require("dailygames/store")
 local Strands = require("dailygames/strands")
 local WhereTaken = require("dailygames/wheretaken")
@@ -75,6 +76,8 @@ local GAMES = {
     { id = "brandle", event = "Brandle", text = _("Brandle"), launch = function() Brandle.launch() end },
     { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end,
       endless = function() Costcodle.launchEndless(today()) end },
+    -- Offline: no puzzle to fetch, so it starts without Wi-Fi.
+    { id = "sabacc", event = "Sabacc", text = _("Sabacc"), offline = true, launch = function() Sabacc.launch() end },
     -- Krillion stays last (it has its own submenu).
     { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },
 }
@@ -184,6 +187,7 @@ end
 --- Starts a game once Wi-Fi is up. (Not named "launch": ZenOS treats
 -- launch/open/show methods as the plugin's entry point.)
 function DailyGames:launchGame(game)
+    if game.offline then return game.launch() end
     NetworkMgr:runWhenOnline(game.launch)
 end
 

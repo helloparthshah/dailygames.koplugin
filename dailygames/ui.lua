@@ -96,11 +96,13 @@ end
 local face_cache = {}
 
 -- Bold is synthesized by RenderText (the `bold` flag), so one face per size.
-local function face(size)
-    if not face_cache[size] then
-        face_cache[size] = Font:getFace("cfont", size)
+local function face(size, name)
+    name = name or "cfont"
+    local key = name .. size
+    if not face_cache[key] then
+        face_cache[key] = Font:getFace(name, size)
     end
-    return face_cache[size]
+    return face_cache[key]
 end
 
 local function measure(f, text, bold)
@@ -109,7 +111,7 @@ local function measure(f, text, bold)
 end
 
 --- Largest face such that every string in `samples` fits w x h.
--- opts: bold, min, caps (single capitals: only cap height must fit, so the
+-- opts: bold, min, font (a KOReader font name, default "cfont"), caps (single capitals: only cap height must fit, so the
 -- face can be much larger than the box height suggests).
 -- Results are cached: boards rebuild on every tap.
 local fit_cache = {}
@@ -117,7 +119,7 @@ function UI.fitFace(samples, w, h, opts)
     opts = opts or {}
     w, h = math.floor(w), math.floor(h)
     local key = table.concat(samples, "\1") .. "|" .. w .. "|" .. h .. "|"
-        .. tostring(opts.bold) .. tostring(opts.caps) .. tostring(opts.min)
+        .. tostring(opts.bold) .. tostring(opts.caps) .. tostring(opts.min) .. tostring(opts.font)
     if fit_cache[key] then return fit_cache[key] end
     local bold = opts.bold
     local scale = math.max(0.5, Screen:scaleBySize(100) / 100)
@@ -125,7 +127,7 @@ function UI.fitFace(samples, w, h, opts)
     local min = opts.min or 6
     local found
     while size > min do
-        local f = face(size)
+        local f = face(size, opts.font)
         local ok = true
         for _, s in ipairs(samples) do
             local tw, th, m = measure(f, s, bold)
@@ -135,7 +137,7 @@ function UI.fitFace(samples, w, h, opts)
         if ok then found = f; break end
         size = size - 1
     end
-    found = found or face(min)
+    found = found or face(min, opts.font)
     fit_cache[key] = found
     return found
 end
@@ -200,14 +202,14 @@ local lines_cache = {}
 function UI.fitLines(text, w, h, max_lines, opts)
     opts = opts or {}
     w, h = math.floor(w), math.floor(h)
-    local key = tostring(text) .. "|" .. w .. "|" .. h .. "|" .. max_lines .. tostring(opts.bold)
+    local key = tostring(text) .. "|" .. w .. "|" .. h .. "|" .. max_lines .. tostring(opts.bold) .. tostring(opts.font)
     if lines_cache[key] then return lines_cache[key][1], lines_cache[key][2] end
     local scale = math.max(0.5, Screen:scaleBySize(100) / 100)
     local size = math.max(6, math.floor(h / max_lines / scale * 0.95))
     local min = opts.min or 7
     local f, lines
     while size >= min do
-        f = face(size)
+        f = face(size, opts.font)
         lines = wrapLines(f, text, w, opts.bold)
         local ok = #lines <= max_lines
         if ok then
