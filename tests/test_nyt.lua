@@ -21,6 +21,10 @@ for _,k in ipairs{"S","L","A","T","E","ENTER"} do app:onKey(k) end
 assert(#app.state.guesses==1)
 local ks = app:keyStates(); assert(ks.A=="correct" and ks.S=="absent" and ks.E=="correct", "key states")
 app:onKey("ENTER"); assert(app.status=="Not enough letters")
+assert(W.isWord("CRANE") and W.isWord("SLATE") and not W.isWord("ZZZZZ") and not W.isWord("XQJVK"))
+for _,k in ipairs{"X","Q","J","V","K","ENTER"} do app:onKey(k) end
+assert(app.status=="Not in word list" and #app.state.guesses==1 and app.state.current=="XQJVK")
+for _=1,5 do app:onKey("DEL") end
 
 for _,k in ipairs{"C","R","A","N","X","DEL","E","ENTER"} do app:onKey(k) end
 assert(app:isWon()); print("wordle status:", app.status)
