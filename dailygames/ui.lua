@@ -291,7 +291,9 @@ function Keyboard:setup()
         for _, k in ipairs(row) do u = u + (type(k) == "table" and k.width or 1) end
         return u
     end
-    local max_units = 10
+    -- min_units keeps letter keys the same width on every keyboard; a keypad
+    -- with few keys per row sets it lower so its keys can be wider.
+    local max_units = self.min_units or 10
     for _, row in ipairs(self.rows) do max_units = math.max(max_units, units(row)) end
     local unit = (self.width - self.gap * (max_units - 1)) / max_units
     self.keys = {}

@@ -75,7 +75,7 @@ local Guesses = UI.Board:extend {}
 function Guesses:setup()
     self.gap = UI.px(6)
     self.row_h = math.floor((self.height - self.gap * (MAX_GUESSES - 1)) / MAX_GUESSES)
-    self.face = UI.fitFace({ "$000.00  Higher · close" }, self.width * 0.9, self.row_h * 0.5, { bold = true })
+    self.face = UI.fitFace({ "$000.00   ↑ Higher  · close" }, self.width * 0.9, self.row_h * 0.6, { bold = true })
 end
 
 local ROW = {
@@ -156,7 +156,8 @@ function App:buildBody(width, height)
     local w = math.floor(width * 0.94)
     local keypad = UI.Keyboard:new {
         width = w,
-        height = UI.px(62) * 3,
+        height = UI.px(70) * 3,
+        min_units = 6,
         rows = {
             { "1", "2", "3", "4", "5", { label = "⌫", value = "DEL", width = 1.5 } },
             { "6", "7", "8", "9", "0", { label = ".", value = "." } },
