@@ -55,7 +55,9 @@ end
 -- at `method` instead (e.g. an entry saved by an older version). ZenOS greys
 -- out entries whose method it can't find.
 -- Returns the number of entries fixed, or nil when ZenOS isn't available.
-function ZenOS.repairLauncherEntries(key, plugin, method)
+-- Also gives entries still on ZenOS's fallback icon ("lightning", used when it
+-- can't match a name, e.g. for entries it adds after a ZenPM install) `icon`.
+function ZenOS.repairLauncherEntries(key, plugin, method, label, icon)
     local model = launcherModel()
     if not model then return nil end
     local ok, fixed = pcall(function()
@@ -65,10 +67,18 @@ function ZenOS.repairLauncherEntries(key, plugin, method)
             for _, entry in ipairs(entries or {}) do
                 if type(entry) == "table" then
                     local p = entry.plugin
-                    if entry.type == "plugin" and type(p) == "table" and p.key == key
-                            and type(plugin[p.method]) ~= "function" then
-                        p.method = method
-                        count = count + 1
+                    if entry.type == "plugin" and type(p) == "table" and p.key == key then
+                        if type(plugin[p.method]) ~= "function" then
+                            p.method = method
+                            count = count + 1
+                        end
+                        if icon and (entry.icon == nil or entry.icon == "lightning") then
+                            local picked = pickIcon(label or entry.label, icon)
+                            if picked ~= entry.icon and picked ~= "lightning" then
+                                entry.icon = picked
+                                count = count + 1
+                            end
+                        end
                     elseif entry.type == "folder" then
                         walk(entry.children)
                     end
