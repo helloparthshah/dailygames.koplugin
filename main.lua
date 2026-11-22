@@ -54,23 +54,23 @@ local GAMES = {
       endless = function() Connections.launchEndless(today()) end },
     { id = "strands", event = "Strands", text = _("Strands"), launch = function() Strands.launch(today()) end,
       endless = function() Strands.launchEndless(today()) end },
-    { id = "mini", event = "Mini", text = _("The Mini Crossword"),
+    { id = "mini", event = "Mini", text = _("The Mini Crossword"), short = _("The Mini"),
       launch = function() Crossword.launch("mini", nytCookie()) end,
       endless = function() Crossword.launchNYTEndless("mini", nytCookie(), today()) end },
     { id = "crossword", event = "Crossword", text = _("Daily Crossword"),
       launch = function() Crossword.launch("daily", nytCookie()) end,
       endless = function() Crossword.launchNYTEndless("daily", nytCookie(), today()) end },
-    { id = "atlantic", event = "Atlantic", text = _("The Atlantic Crossword"),
+    { id = "atlantic", event = "Atlantic", text = _("The Atlantic Crossword"), short = _("The Atlantic"),
       launch = function() Crossword.launch("atlantic") end,
       endless = function() Crossword.launchAtlanticEndless() end },
     { id = "foodguessr", event = "FoodGuessr", text = _("FoodGuessr"), launch = function() FoodGuessr.launch() end,
       endless = function() FoodGuessr.launchEndless() end },
-    { id = "cuisinematch", event = "CuisineMatch", text = _("FoodGuessr: Cuisine Match"),
+    { id = "cuisinematch", event = "CuisineMatch", text = _("FoodGuessr: Cuisine Match"), short = _("Cuisine Match"),
       launch = function() FoodModes.launchCuisineMatch() end,
       endless = function() FoodModes.launchCuisineMatchEndless() end },
-    { id = "plateoff", event = "PlateOff", text = _("FoodGuessr: Plate-Off"), launch = function() FoodModes.launchPlateOff() end },
+    { id = "plateoff", event = "PlateOff", text = _("FoodGuessr: Plate-Off"), short = _("Plate-Off"), launch = function() FoodModes.launchPlateOff() end },
     { id = "moreless", event = "MoreLess", text = _("More/Less"), launch = function() MoreLess.launch() end },
-    { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), launch = function() Marveldle.launch() end },
+    { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), short = _("Marveldle"), launch = function() Marveldle.launch() end },
     { id = "wheretaken", event = "WhereTaken", text = _("WhereTaken"), launch = function() WhereTaken.launch(today()) end },
     { id = "brandle", event = "Brandle", text = _("Brandle"), launch = function() Brandle.launch() end },
     { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end,
@@ -87,7 +87,7 @@ local ENDLESS = {}
 for __, game in ipairs(GAMES) do
     if game.endless then
         table.insert(ENDLESS, { id = game.id .. "_endless", event = game.event .. "Endless",
-            text = game.text .. _(" (endless)"), launch = game.endless })
+            text = game.text .. _(" (endless)"), short = game.short or game.text, launch = game.endless })
     end
 end
 
@@ -201,27 +201,36 @@ for __, list in ipairs { GAMES, ENDLESS } do
     end
 end
 
+--- Lays buttons out two per row so the whole list fits on one screen.
+local function twoColumns(items)
+    local rows = {}
+    for i = 1, #items, 2 do
+        rows[#rows + 1] = { items[i], items[i + 1] }
+    end
+    return rows
+end
+
 function DailyGames:showHub()
     local dialog
-    local buttons = {}
+    local items = {}
     for __, game in ipairs(GAMES) do
         local status = gameStatus(game)
-        table.insert(buttons, { {
-            text = game.text .. (status == "done" and "  ✓" or status == "started" and "  …" or ""),
+        table.insert(items, {
+            text = (game.short or game.text) .. (status == "done" and " ✓" or status == "started" and " …" or ""),
             callback = function()
                 UIManager:close(dialog)
                 self:launchGame(game)
             end,
-        } })
+        })
     end
-    table.insert(buttons, { {
-        text = _("Endless modes ›"),
-        callback = function()
+    local buttons = twoColumns(items)
+    table.insert(buttons, {
+        { text = _("Endless modes ›"), callback = function()
             UIManager:close(dialog)
             self:showEndless()
-        end,
-    } })
-    table.insert(buttons, { { text = _("Close"), callback = function() UIManager:close(dialog) end } })
+        end },
+        { text = _("Close"), callback = function() UIManager:close(dialog) end },
+    })
     dialog = ButtonDialog:new { title = _("Daily Games") .. " · " .. today(), buttons = buttons }
     UIManager:show(dialog)
 end
@@ -229,16 +238,17 @@ end
 --- Endless modes: play as many puzzles as you like (separate from today's).
 function DailyGames:showEndless()
     local dialog
-    local buttons = {}
+    local items = {}
     for __, game in ipairs(ENDLESS) do
-        table.insert(buttons, { {
-            text = game.text,
+        table.insert(items, {
+            text = game.short,
             callback = function()
                 UIManager:close(dialog)
                 self:launchGame(game)
             end,
-        } })
+        })
     end
+    local buttons = twoColumns(items)
     table.insert(buttons, { { text = _("‹ Back"), callback = function()
         UIManager:close(dialog)
         self:showHub()
