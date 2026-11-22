@@ -228,18 +228,19 @@ STORE["progress/wordle"] = { date = d, state = { guesses = { "CRANE" }, current 
 STORE["progress/connections"] = { date = d, state = { remaining = {}, mistakes = 1 } }
 STORE["progress/strands"] = { date = "2000-01-01", state = { done = true } }
 plug:onDailyGamesHub(); local hubd = top(); local labels = {}
-for _, row in ipairs(hubd.buttons) do labels[#labels + 1] = row[1].text end
+for _, row in ipairs(hubd.buttons) do for _, b in ipairs(row) do labels[#labels + 1] = b.text end end
 local joined = table.concat(labels, "|")
-assert(joined:find("Wordle  ✓", 1, true), joined)
-assert(joined:find("Connections  …", 1, true), joined)
+assert(joined:find("Wordle ✓", 1, true), joined)
+assert(joined:find("Connections …", 1, true), joined)
 assert(joined:find("|Strands|", 1, true), "yesterday's finished game has no tick: " .. joined)
-hubd.buttons[#hubd.buttons][1].callback()
+assert(#hubd.buttons == 9 and #hubd.buttons[1] == 2, "two columns: " .. #hubd.buttons)
+hubd.buttons[#hubd.buttons][2].callback()
 -- a finished game records done when saved
 plug:onDailyGamesConnections(); local capp = top(); capp:revealRest(); capp:save()
 assert(STORE["progress/connections"].state.done == true, "connections marks done"); capp:onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==17, #hub.buttons); hub.buttons[17][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==9, #hub.buttons); hub.buttons[9][2].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
