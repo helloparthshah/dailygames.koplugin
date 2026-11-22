@@ -139,7 +139,7 @@ local App = UI.FullscreenApp:extend {
     name = "moreless_app",
     help_text = [[Which has more?
 
-Each round shows two things. Tap "This one has more" under the one with the bigger number (searches, streams, rating, price or trivia amount).
+Each round shows two things. Tap the one with the bigger number (searches, streams, rating, price or trivia amount).
 
 The answer is revealed after each pick, and the second card moves up for the next round. 5 categories × 5 rounds = 25 points.]],
 }
@@ -215,10 +215,8 @@ function App:buildBody(width, height)
               callback = function() self:advance() end },
         } } }
     else
-        buttons = ButtonTable:new { width = w, show_parent = self, buttons = { {
-            { text = "Top has more", callback = function() self:pick("left") end },
-            { text = "Bottom has more", callback = function() self:pick("right") end },
-        } } }
+        -- before picking, the cards themselves are the buttons
+        buttons = UI.text("Tap the one with more", w, { bold = true, face = "infofont" })
     end
     local status = self:statusLine(w)
     local bottom = VerticalGroup:new { align = "center", status, UI.span(6), buttons }
@@ -229,12 +227,18 @@ function App:buildBody(width, height)
     local top = VerticalGroup:new {
         align = "center",
         header, UI.span(6),
-        card(self, left, w, card_h, left_stat and MoreLess.formatStat(self.state.cat, left_stat)),
+        self:pickable(card(self, left, w, card_h, left_stat and MoreLess.formatStat(self.state.cat, left_stat)), "left"),
         UI.text("— or —", w, { face = "smallinfofont" }),
-        card(self, right, w, card_h, right_stat and MoreLess.formatStat(self.state.cat, right_stat),
-            self.state.revealed and (verdict and "✓ " or "✗ ") or nil),
+        self:pickable(card(self, right, w, card_h, right_stat and MoreLess.formatStat(self.state.cat, right_stat),
+            self.state.revealed and (verdict and "✓ " or "✗ ") or nil), "right"),
     }
     return top, bottom
+end
+
+--- Tapping a card picks it (until the answer is revealed).
+function App:pickable(widget, side)
+    if self.state.revealed then return widget end
+    return UI.tappable(widget, function() self:pick(side) end)
 end
 
 function App:save()

@@ -316,6 +316,30 @@ function UI.photo(path, max_w, max_h)
     return CenterContainer:new { dimen = Geom:new { w = max_w, h = bh }, img }
 end
 
+-- Tappable: makes any widget (e.g. a photo card) one big tap target ---------------
+
+local Tappable = InputContainer:extend {
+    on_tap = nil,
+}
+
+function Tappable:init()
+    local size = self[1]:getSize()
+    self.dimen = Geom:new { x = 0, y = 0, w = size.w, h = size.h }
+    self.ges_events = {
+        Tap = { GestureRange:new { ges = "tap", range = function() return self.dimen end } },
+    }
+end
+
+function Tappable:onTap()
+    if self.on_tap then self.on_tap() end
+    return true
+end
+
+--- Wraps `widget` so tapping anywhere on it calls `callback`.
+function UI.tappable(widget, callback)
+    return Tappable:new { on_tap = callback, widget }
+end
+
 -- Board: custom-drawn widget with one tap area ---------------------------------
 
 local Board = InputContainer:extend {
