@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "tag_name": "v1.12.0",
+      "name": "v1.12.0",
+      "prerelease": false,
+      "assets": [
+        {
+          "name": "dailygames.koplugin.zip",
+          "url": "https://github.com/helloparthshah/dailygames.koplugin/releases/download/v1.12.0/dailygames.koplugin.zip",
+          "size": 125044,
+          "digest": "sha256:425c9bf66c4b7cd97c30e9dc2aa6dce2903a112c83704a90363e88770888fa7d"
+        }
+      ]
+    },
+    {
       "tag_name": "v1.11.0",
       "name": "v1.11.0",
       "prerelease": false,
