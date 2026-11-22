@@ -61,7 +61,7 @@ function Board:setup()
         (self.width - self.gap * (WORD_LEN - 1)) / WORD_LEN,
         (self.height - self.gap * (MAX_GUESSES - 1)) / MAX_GUESSES))
     self.ox = math.floor((self.width - (self.tile * WORD_LEN + self.gap * (WORD_LEN - 1))) / 2)
-    self.face = UI.fitFace({ "W", "M" }, self.tile * 0.7, self.tile * 0.6, { bold = true })
+    self.face = UI.fitFace({ "W", "M" }, self.tile * 0.7, self.tile * 0.5, { bold = true, caps = true })
 end
 
 function Board:draw(bb, x, y)

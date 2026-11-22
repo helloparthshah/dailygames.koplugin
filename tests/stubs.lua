@@ -13,10 +13,11 @@ end
 local Widget = class("Widget")
 local function W(name) return class(name, Widget) end
 local UIManager = {}
-function UIManager:show(w) table.insert(SHOWN, w); table.insert(LOG, "show "..(w._name or "?")..": "..tostring(w.text or w.title or (w.getTitle and w:getTitle()))) end
+function UIManager:show(w) table.insert(SHOWN, w); if w.onShow then w:onShow() end; table.insert(LOG, "show "..(w._name or "?")..": "..tostring(w.text or w.title or (w.getTitle and w:getTitle()))) end
 function UIManager:close(w) for i,x in ipairs(SHOWN) do if x==w then table.remove(SHOWN,i) end end; if w.onCloseWidget then w:onCloseWidget() end end
 function UIManager:forceRePaint() end
-function UIManager:setDirty() end
+DIRTY = {}
+function UIManager:setDirty(w, f) local t = type(f) == "function" and f() or f; table.insert(DIRTY, { w = w, type = t }) end
 function UIManager:scheduleIn(t, f) table.insert(QUEUE, f) end
 function UIManager:nextTick(f) table.insert(QUEUE, f) end
 function UIManager:unschedule(f) for i=#QUEUE,1,-1 do if QUEUE[i]==f then table.remove(QUEUE,i) end end end
