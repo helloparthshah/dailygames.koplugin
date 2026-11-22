@@ -1,0 +1,55 @@
+name: Emulator screenshots
+
+# Runs the real KOReader desktop build headless with this plugin and
+# tests/emulator/dgshots.koplugin, which opens every game (live data) and
+# saves screenshots. Results are pushed to the emulator-shots branch.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download KOReader
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view -R koreader/koreader --json tagName,assets -q '.tagName, .assets[].name'
+          gh release download -R koreader/koreader -p '*x86_64*.AppImage' -O koreader.AppImage
+          chmod +x koreader.AppImage
+          ./koreader.AppImage --appimage-extract > /dev/null
+      - name: Install display deps
+        run: sudo apt-get update && sudo apt-get install -y xvfb libsdl2-2.0-0 libfuse2
+      - name: Run games
+        run: |
+          set -x
+          mkdir -p "$HOME/dg/dailygames.koplugin" "$HOME/books" "$HOME/shots" "$HOME/.config/koreader"
+          cp -r _meta.lua main.lua dailygames "$HOME/dg/dailygames.koplugin/"
+          cp -r tests/emulator/dgshots.koplugin "$HOME/dg/"
+          cat > "$HOME/.config/koreader/settings.reader.lua" <<LUA
+          return {
+              ["extra_plugin_paths"] = { "$HOME/dg" },
+              ["home_dir"] = "$HOME/books",
+              ["lastdir"] = "$HOME/books",
+              ["quickstart_shown_version"] = 999999999999,
+              ["start_with"] = "filemanager",
+          }
+          LUA
+          export EMULATE_READER_W=1236 EMULATE_READER_H=1648 EMULATE_READER_DPI=300
+          export DG_SHOTS="$HOME/shots"
+          timeout 420 xvfb-run -a -s "-screen 0 1300x1700x24" ./squashfs-root/AppRun "$HOME/books" > "$HOME/shots/stdout.txt" 2>&1 || true
+          ls -la "$HOME/shots"
+          tail -50 "$HOME/shots/stdout.txt"
+          cp "$HOME/.config/koreader/crash.log" "$HOME/shots/" 2>/dev/null || true
+      - name: Push screenshots
+        run: |
+          cd "$HOME/shots"
+          git init -q -b emulator-shots
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Emulator screenshots for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" emulator-shots
