@@ -4,7 +4,10 @@ NYT Wordle, Connections, Strands, Mini and Daily Crossword, plus the Krillion da
 
 ## Install
 
-- **Zen PM / plugin managers:** install from `helloparthshah/dailygames.koplugin`.
+- **ZenPM (recommended):** open ZenPM > **Sources**, add
+  `https://raw.githubusercontent.com/helloparthshah/dailygames.koplugin/main/zenpm/`,
+  refresh, then install **Daily Games** (Games). ZenPM offers updates for new releases.
+  From a terminal: `zenpm repo add dailygames <url> && zenpm repo refresh && zenpm install dailygames`.
 - **Manual:** download `dailygames.koplugin.zip` from [Releases](https://github.com/helloparthshah/dailygames.koplugin/releases), unzip, and copy the `dailygames.koplugin` folder into `koreader/plugins/` (ZenFM or USB).
 
 Restart KOReader afterwards. Remove any older NYT Games plugin folder so you don't have both.
@@ -55,4 +58,4 @@ Tests run against stubbed KOReader modules:
 for t in tests/test_*.lua; do luajit tests/run.lua "$t"; done
 ```
 
-To release, push a tag like `v1.0.1`, or run the **Release** workflow from the Actions tab with a version. It runs the tests and attaches `dailygames.koplugin.zip` to the release.
+To release, push a tag like `v1.0.1`, or run the **Release** workflow from the Actions tab with a version. It runs the tests, attaches `dailygames.koplugin.zip` to the release, and regenerates the ZenPM source in `zenpm/` (`.github/scripts/zenpm_manifest.py`).
