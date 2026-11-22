@@ -1064,7 +1064,10 @@ function Screen:drawTable(bb, x, y)
     if d then
         drawCard(bb, d, px, top, self.pile_w, self.pile_h, self.faces_pile)
     else
-        frame(bb, hexPts, px, top, self.pile_w, self.pile_h, 2, UI.LIGHT, UI.PALE)
+        -- empty: the rules say a buy or trade from it takes the top card of the deck
+        frame(bb, hexPts, px, top, self.pile_w, self.pile_h, 2, UI.MID, UI.PALE)
+        local ef = UI.fitFace({ "EMPTY" }, self.pile_w * 0.7, self.pile_h * 0.12, { font = MONO, bold = true })
+        UI.drawText(bb, ef, "EMPTY", px, top, self.pile_w, self.pile_h, UI.DARK, true)
     end
     UI.drawText(bb, self.face_label, "DISCARD", px - pad, top + self.pile_h, self.pile_w + 2 * pad, label_h, UI.DARK)
 
@@ -1475,14 +1478,14 @@ function App:buttonRow()
         if self.sel then
             return {
                 { text = "Trade with deck", sub = "free", primary = true, callback = function() self:doTrade("trade_deck") end },
-                { text = "Trade with discard", sub = "free", callback = function() self:doTrade("trade_discard") end },
+                { text = "Trade with discard", sub = #g.discard == 0 and "free · top deck card" or "free", callback = function() self:doTrade("trade_discard") end },
                 { text = "Cancel", callback = function() self:pick(self.sel) end },
             }
         end
         return {
             { text = "Buy deck", sub = BUY_DECK .. " cr", enabled = me.credits >= BUY_DECK,
                 callback = function() self:doTrade("buy_deck") end },
-            { text = "Buy discard", sub = BUY_DISCARD .. " cr", enabled = me.credits >= BUY_DISCARD,
+            { text = "Buy discard", sub = BUY_DISCARD .. " cr" .. (#g.discard == 0 and " · top deck card" or ""), enabled = me.credits >= BUY_DISCARD,
                 callback = function() self:doTrade("buy_discard") end },
             { text = "Stand", primary = true, callback = function() self:doTrade("stand") end },
         }

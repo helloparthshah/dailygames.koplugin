@@ -72,6 +72,16 @@ assert(not Sabacc.bet(g, "check"), "no betting while trading")
 assert(Sabacc.trade(g, "buy_deck"))
 assert(#g.players[1].hand == 3 and g.players[1].credits == credits - 10)
 
+-- official rule: buying from an empty discard pile discards the top deck card first, then takes it
+do
+    local t = Sabacc.newTable()
+    t.discard = {}
+    local top_card = t.deck[#t.deck]
+    local me = t.players[1]
+    assert(Sabacc.trade(t, "buy_discard"))
+    assert(me.hand[#me.hand] == top_card, "took the top card of the deck")
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot
