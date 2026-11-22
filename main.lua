@@ -21,6 +21,7 @@ local _ = require("gettext")
 
 -- Plugin-local modules must be required at load time (KOReader only adds the
 -- plugin folder to package.path while loading main.lua).
+local Brandle = require("dailygames/brandle")
 local Connections = require("dailygames/connections")
 local Costcodle = require("dailygames/costcodle")
 local Crossword = require("dailygames/crossword")
@@ -71,6 +72,7 @@ local GAMES = {
     { id = "moreless", event = "MoreLess", text = _("More/Less"), launch = function() MoreLess.launch() end },
     { id = "marveldle", event = "Marveldle", text = _("Marveldle (MCU)"), launch = function() Marveldle.launch() end },
     { id = "wheretaken", event = "WhereTaken", text = _("WhereTaken"), launch = function() WhereTaken.launch(today()) end },
+    { id = "brandle", event = "Brandle", text = _("Brandle"), launch = function() Brandle.launch() end },
     { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end,
       endless = function() Costcodle.launchEndless(today()) end },
     -- Krillion stays last (it has its own submenu).
@@ -95,6 +97,7 @@ local PROGRESS_KEY = {
     mini = "crossword_mini", crossword = "crossword_daily", atlantic = "crossword_atlantic",
     foodguessr = "foodguessr", cuisinematch = "cuisinematch", plateoff = "plateoff",
     moreless = "moreless", marveldle = "marveldle", wheretaken = "wheretaken", costcodle = "costcodle",
+    brandle = "brandle",
 }
 
 --- Dates that can count as "today" for some game: local, UTC and US Eastern

@@ -211,6 +211,20 @@ local STEPS = {
     function() shot("plateoff_result") end,
     function() closeAllGames() end,
 
+    -- Brandle: start, two wrong guesses, then the answer
+    function() mod("brandle").launch() end,
+    function() shot("brandle_start") end,
+    function() local app = top()
+        local n = 0
+        for _, b in ipairs(app.brands) do
+            if b.id ~= app.answer.id and n < 2 then app:guess(b); n = n + 1 end
+        end
+        for ch in ("ni"):gmatch(".") do app:onKey(ch:upper()) end end,
+    function() shot("brandle_guesses") end,
+    function() local app = top(); app:guess(app.answer) end,
+    function() shot("brandle_solved") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,
