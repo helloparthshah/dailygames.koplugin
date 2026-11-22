@@ -80,33 +80,58 @@ local function shot(label)
     log("SHOT " .. name .. " top=" .. describe(top()))
 end
 
+local function typeWord(app, word)
+    for ch in word:gmatch(".") do app:onKey(ch) end
+    app:onKey("ENTER")
+end
+
 local STEPS = {
     function() shot("home") end,
     function() plugin():open() end,
     function() shot("hub") end,
     function() closeTop() end,
 
-    -- Wordle
+    -- Wordle: one miss, then a partial, then the answer
     function() mod("wordle").launch(today) end,
     function() shot("wordle_start") end,
-    function() local app = top(); for _, k in ipairs { "S", "L", "A", "T", "E", "ENTER", "C", "R" } do app:onKey(k) end end,
-    function() shot("wordle_guess") end,
+    function() local app = top(); typeWord(app, "SLATE"); typeWord(app, "CRONY"); for _, k in ipairs { "B", "R" } do app:onKey(k) end end,
+    function() shot("wordle_guesses") end,
+    function() local app = top(); app:onKey("DEL"); app:onKey("DEL"); typeWord(app, app.solution) end,
+    function() shot("wordle_solved") end,
+    function() top():showMenu() end,
+    function() shot("wordle_menu") end,
+    function() closeTop() end,
     function() closeAllGames() end,
     function() shot("after_wordle") end,
 
-    -- Connections
+    -- Connections: select a real group, submit, then a wrong guess
     function() mod("connections").launch(today) end,
     function() shot("connections_start") end,
-    function() local app = top(); for i = 1, 4 do app:toggle(app.state.remaining[i]) end end,
+    function() local app = top(); for _, w in ipairs(app.categories[1].words) do app:toggle(w) end end,
     function() shot("connections_selected") end,
     function() top():submit() end,
-    function() shot("connections_after_submit") end,
+    function() shot("connections_solved_one") end,
+    function()
+        local app = top()
+        local a, b = app.categories[2].words, app.categories[3].words
+        for _, w in ipairs { a[1], a[2], a[3], b[1] } do app:toggle(w) end
+        app:submit()
+    end,
+    function() shot("connections_one_away") end,
     function() closeAllGames() end,
 
-    -- Strands
+    -- Strands: find the first theme word, then start a path, then a hint
     function() mod("strands").launch(today) end,
     function() shot("strands_start") end,
-    function() local app = top(); app:tapCell(1, 1); app:tapCell(1, 2); app:tapCell(2, 2) end,
+    function()
+        local app = top()
+        local w = app.theme_words[1]
+        for _, rc in ipairs(app.coords[w] or {}) do app:tapCell(rc[1] + 1, rc[2] + 1) end
+        local last = (app.coords[w] or {})[#(app.coords[w] or {})]
+        if last then app:tapCell(last[1] + 1, last[2] + 1) end
+    end,
+    function() shot("strands_found") end,
+    function() local app = top(); app:tapCell(8, 1); app:tapCell(7, 1); app:tapCell(7, 2) end,
     function() shot("strands_path") end,
     function() top():giveHint() end,
     function() shot("strands_hint") end,
@@ -115,18 +140,19 @@ local STEPS = {
     -- Mini crossword
     function() mod("crossword").launch("mini", "") end,
     function() shot("mini_start") end,
-    function() local app = top(); for _, k in ipairs { "A", "B", "C" } do app:onAction(k) end end,
+    function() local app = top(); for _, k in ipairs { "A", "B", "C" } do app:onKey(k) end end,
     function() shot("mini_typed") end,
-    function() local app = top(); app:onAction("DOWN"); app:onAction("DOWN") end,
+    function() local app = top(); app:toggleDirection(); app:refresh() end,
     function() shot("mini_down") end,
-    function() top():onAction("CLUES") end,
+    function() local app = top(); app:check(); app:refresh() end,
+    function() shot("mini_check") end,
+    function() top():showClueList() end,
     function() shot("mini_clues") end,
     function() closeTop() end,
-    function() shot("mini_after_clues") end,
     function() closeAllGames() end,
     function() shot("after_mini") end,
 
-    -- Daily crossword (no cookie: expect an explanation)
+    -- Daily crossword
     function() mod("crossword").launch("daily", "") end,
     function() shot("daily_crossword") end,
     function() closeAllGames() end,
