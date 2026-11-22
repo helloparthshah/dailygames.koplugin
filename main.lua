@@ -72,7 +72,7 @@ end
 --- Adds "Daily Games" to the ZenOS App Launcher once. If the user removes it
 -- later it stays removed. Retried on later starts until ZenOS is found.
 function DailyGames:addToZenOSLauncher()
-    ZenOS.repairLauncherEntries(self.name, self, "open")
+    ZenOS.repairLauncherEntries(self.name, self, "open", _("Daily Games"), "quick_puzzle")
     if Store.get("zenos_launcher_added") then return end
     local result = ZenOS.addLauncherEntry {
         key = self.name,

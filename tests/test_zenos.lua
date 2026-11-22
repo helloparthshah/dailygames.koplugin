@@ -27,7 +27,7 @@ assert(#cfg.entries == 1 and saves == 1)
 STORE.zenos_launcher_added = nil
 cfg.entries[2] = { id = "al_9", type = "folder", label = "Games", children = { { id = "al_10", type = "plugin", label = "DG", plugin = { key = "dailygames", method = "open" } } } }
 P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
-assert(#cfg.entries == 2 and saves == 1)
+assert(#cfg.entries == 2 and cfg.entries[2].children[1].icon == "quick_puzzle")
 
 -- ZenOS picks the first callable of these as the plugin's entry point (plugin_scan.lua).
 for _, m in ipairs { "onShow", "show", "open", "launch", "onOpen" } do
@@ -53,6 +53,14 @@ cfg.entries = { { id = "al_1", type = "plugin", label = "Daily Games", plugin = 
 local before = saves
 P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
 assert(cfg.entries[1].plugin.method == "open" and #cfg.entries == 1 and saves > before, "stale entry repaired")
+-- Entries on ZenOS's fallback icon get the puzzle icon.
+cfg.entries[1].icon = "lightning"; before = saves
+P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
+assert(cfg.entries[1].icon == "quick_puzzle" and saves > before, "icon repaired")
+-- A user-chosen icon is left alone.
+cfg.entries[1].icon = "star"; before = saves
+P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
+assert(cfg.entries[1].icon == "star" and saves == before)
 -- v1.0.0 entries used "launch": still works and is left alone.
 cfg.entries[1].plugin.method = "launch"; before = saves
 P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
