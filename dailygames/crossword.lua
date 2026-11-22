@@ -30,7 +30,7 @@ function Grid:setup()
     self.oy = 0
     self.height = self.cell * app.height
     self.dimen.h, self.paint_rect.h = self.height, self.height
-    self.letter_face = UI.fitFace({ "W", "M" }, self.cell * 0.7, self.cell * 0.5, { bold = true, caps = true })
+    self.letter_face = UI.fitFace({ "W", "M" }, self.cell * 0.7, self.cell * 0.55, { bold = true, caps = true })
     self.label_face = UI.fitFace({ "88" }, self.cell * 0.4, self.cell * 0.26)
 end
 
