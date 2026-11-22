@@ -91,8 +91,8 @@ end
 local ClueBar = UI.Board:extend {}
 
 function ClueBar:setup()
-    self.face = UI.fitFace({ "Mg" }, self.width, self.height * 0.36)
-    self.head_face = UI.fitFace({ "Mg" }, self.width, self.height * 0.3, { bold = true })
+    self.face = UI.fitFace({ "Mg" }, self.width, self.height * 0.28)
+    self.head_face = UI.fitFace({ "Mg" }, self.width, self.height * 0.24, { bold = true })
 end
 
 function ClueBar:draw(bb, x, y)
