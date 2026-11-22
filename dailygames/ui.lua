@@ -305,11 +305,14 @@ end
 function UI.photo(path, max_w, max_h)
     max_w, max_h = math.floor(max_w), math.floor(max_h)
     if not path then return UI.text("(photo unavailable)", max_w) end
-    local img = ImageWidget:new { file = path, width = max_w, height = max_h, scale_factor = 0 }
-    img:getSize() -- renders and scales
+    -- measure the fitted size with a throwaway widget (it computes its own
+    -- centring offsets on render, so it can't simply be shrunk afterwards)
+    local probe = ImageWidget:new { file = path, width = max_w, height = max_h, scale_factor = 0 }
+    probe:getSize()
     local bw, bh = max_w, max_h
-    if img._bb then bw, bh = img._bb:getWidth(), img._bb:getHeight() end
-    img.width, img.height = bw, bh
+    if probe._bb then bw, bh = probe._bb:getWidth(), probe._bb:getHeight() end
+    probe:free()
+    local img = ImageWidget:new { file = path, width = bw, height = bh, scale_factor = 0 }
     return CenterContainer:new { dimen = Geom:new { w = max_w, h = bh }, img }
 end
 
