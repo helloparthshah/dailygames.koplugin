@@ -34,7 +34,7 @@ def main():
         if rel.get("draft"):
             continue
         assets = [
-            {"name": a["name"], "url": a["browser_download_url"], "size": str(a["size"]),
+            {"name": a["name"], "url": a["browser_download_url"], "size": int(a["size"]),  # ZenPM wants a number
              **({"digest": a["digest"]} if a.get("digest") else {})}
             for a in rel.get("assets", []) if a["name"] == ASSET
         ]
