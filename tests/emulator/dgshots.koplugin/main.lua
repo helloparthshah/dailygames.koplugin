@@ -184,6 +184,15 @@ local STEPS = {
     function() shot("marveldle_typed") end,
     function() closeAllGames() end,
 
+    -- WhereTaken: a wrong guess, then the right one, then the landmark bonus
+    function() mod("wheretaken").launch(today) end,
+    function() shot("wheretaken_start") end,
+    function() local app = top(); app:guess(app.answer == "FR" and "DE" or "FR"); for _, k in ipairs { "S", "P" } do app:onKey(k) end end,
+    function() shot("wheretaken_guess") end,
+    function() local app = top(); app:guess(app.answer); app:nextPhase() end,
+    function() shot("wheretaken_bonus") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,
