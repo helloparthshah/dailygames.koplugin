@@ -122,7 +122,7 @@ ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==9); hub.buttons[9][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==10); hub.buttons[10][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
@@ -137,4 +137,31 @@ for _, k in ipairs { "5", ".", ".", "9", "9", "9", "ENTER" } do app:onKey(k) end
 assert(app.state.guesses[2] == 5.99 and app:isWon(), tostring(app.state.guesses[2]))
 print("costcodle:", app.status)
 app:onClose()
+-- FOODGUESSR
+local F = require("dailygames/foodguessr")
+local sug = F.suggest("mex"); assert(sug[1] == "MX", tostring(sug[1]))
+sug = F.suggest("states"); assert(sug[1] == "US-48", "word match: " .. tostring(sug[1]))
+assert(F.suggest("aland")[1] == "AX", "accent folding")
+assert(F.compass(0) == "N" and F.compass(44) == "NE" and F.compass(181) == "S" and F.compass(350) == "N")
+local pairsT = { ["CL-MX"] = { 6600, 150, 330 }, ["MX-PE"] = { 4300, 140, 320 }, ["AR-MX"] = { 7400, 145, 325 } }
+-- pairs["CL-MX"] = { km, bearing CL->MX, bearing MX->CL }
+local km, b = F.distance(pairsT, "CL", "MX"); assert(km == 6600 and b == 150)
+km, b = F.distance(pairsT, "MX", "CL"); assert(km == 6600 and b == 330)
+ROUTES["https://www.foodguessr.com/api/trpc/daily.today?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%7D%7D"] = function()
+    return { { result = { data = { json = { date = d .. "T00:00:00.000Z", v2Distances = { pairs = pairsT },
+        rounds = { { food = { name = "Cuchufli", ingredients = "dough", informationHint = "sweet", countriesV2 = {
+            { countryCode = "CL", name = "Chile" }, { countryCode = "AR", name = "Argentina" } } } },
+          { food = { name = "Taco", countriesV2 = { { countryCode = "MX", name = "Mexico" } } } } } } } } } }, 200
+end
+plug:onDailyGamesFoodGuessr(); app = top(); assert(app._name == "foodguessr_app", tostring(app._name))
+app:onKey("M"); app:onKey("E"); assert(app.input == "ME")
+app:guess("MX")
+local j = F.judge(app.rounds[1], app.pairs, "MX"); assert(not j.correct and j.km == 6600 and j.score == F.nearMiss(6600))
+assert(app:guessLines()[1]:find("6,600 km"), app:guessLines()[1])
+app:guess("AR"); assert(app:roundOver(1))
+assert(F.roundScore(app.rounds[1], app.pairs, { "MX", "AR" }) == 1000 + 3000 + 0)
+assert(F.roundScore(app.rounds[1], app.pairs, { "CL" }) == 5000)
+app:nextRound(); assert(app.state.round == 2)
+app:onClose()
+plug:onDailyGamesFoodGuessr(); assert(top().state.round == 2, "progress restored"); top():onClose()
 print("ALL NYT TESTS PASSED")
