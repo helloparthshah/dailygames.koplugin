@@ -12,10 +12,21 @@ local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
 local NYT = require("dailygames/nyt")
+local WORDS_DATA = require("dailygames/data_words5")
 local Store = require("dailygames/store")
 local UI = require("dailygames/ui")
 
 local WORD_LEN, MAX_GUESSES = 5, 6
+
+local word_set
+--- True if `word` is in the ENABLE five-letter list (built on first use).
+local function isWord(word)
+    if not word_set then
+        word_set = {}
+        for w in WORDS_DATA:gmatch("%u%u%u%u%u") do word_set[w] = true end
+    end
+    return word_set[word] == true
+end
 local RANK = { absent = 1, present = 2, correct = 3 }
 
 --- Two-pass evaluation so repeated letters are scored like NYT does.
@@ -199,6 +210,10 @@ function Wordle:onKey(key)
             self:setStatus("Not enough letters")
             return
         end
+        if st.current ~= self.solution and not isWord(st.current) then
+            self:setStatus("Not in word list")
+            return
+        end
         table.insert(st.guesses, st.current)
         st.current = ""
         self:save()
@@ -227,5 +242,6 @@ function Wordle.launch(date)
 end
 
 Wordle.evaluate = evaluate -- exposed for tests
+Wordle.isWord = isWord
 
 return Wordle
