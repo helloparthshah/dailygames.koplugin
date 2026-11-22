@@ -178,9 +178,11 @@ local STEPS = {
     function() shot("moreless_start") end,
     function() closeAllGames() end,
 
-    -- Marveldle (type only, no guesses sent)
+    -- Marveldle: two guesses so the attribute table shows
     function() mod("marveldle").launch() end,
-    function() local app = top(); for _, k in ipairs { "T", "H" } do app:onKey(k) end end,
+    function() local app = top(); for _, c in ipairs(app.characters) do
+        if c.name == "Thor" or c.name == "Loki" then app:guess(c) end end
+        for _, k in ipairs { "W", "A" } do app:onKey(k) end end,
     function() shot("marveldle_typed") end,
     function() closeAllGames() end,
 
