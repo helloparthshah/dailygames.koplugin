@@ -170,6 +170,52 @@ do
     assert(STORE["progress/crossword_mini_endless"], "crossword endless saved on close")
     package.loaded["dailygames/http"].getJson = real
 end
+-- BRANDLE
+do
+    local B = require("dailygames/brandle")
+    local items = {}
+    local inds, revs = { "Technology", "Food & Beverage", "Luxury" }, { "Small", "Medium", "Large", "Mega" }
+    for i = 1, 60 do
+        items[i] = string.format('{id:%d,name:"Brand%d",industry:"%s",country:"C%d",founded:%s,revenue:"%s",domain:"b%d.com"}',
+            i, i, inds[i % 3 + 1], i % 4, i == 7 and "2e3" or tostring(1900 + i), revs[i % 4 + 1], i)
+    end
+    items[1] = '{id:1,name:"Nestl\\xe9",industry:"Food & Beverage",country:"Switzerland",founded:1866,revenue:"Mega",domain:"nestle.com"}'
+    local chunk = "let i=[" .. table.concat(items, ",") .. '];var a=JSON.parse(\'{"nestle.com":"/brandle-logos/nestle.png"}\')'
+    local data = assert(B.parseChunk(chunk))
+    assert(#data.brands == 60 and data.brands[1].name == "Nestlé" and data.brands[7].founded == 2000, data.brands[1].name)
+    assert(data.logos["nestle.com"] == "/brandle-logos/nestle.png")
+    assert(B.dayIndex("2025-01-01") == 0 and B.dayIndex("2026-11-22") == 690)
+    -- golden picks (the real list's pick for 2026-11-22 was checked against the site)
+    local got = {}
+    for _, day in ipairs { 0, 59, 60, 667, 668, 669, 727, 728, 900 } do got[#got + 1] = B.pick(data.brands, day).id end
+    assert(table.concat(got, ",") == "9,13,22,36,26,9,5,20,54", table.concat(got, ","))
+    -- no repeats within a cycle after 2026-11-01
+    local seen = {}
+    for day = 669, 669 + 59 do local id = B.pick(data.brands, day).id; assert(not seen[id], "repeat " .. id); seen[id] = true end
+    local j = B.judge({ id = 2, industry = "X", country = "Y", founded = 1995, revenue = "Large" },
+        { id = 1, industry = "X", country = "Z", founded = 2003, revenue = "Mega" })
+    assert(j.industry and not j.country and j.year == "close-later" and j.revenue == "higher" and not j.correct)
+    j = B.judge({ id = 1, founded = 1880, revenue = "Mega" }, { id = 3, founded = 1866, revenue = "Small" })
+    assert(j.year == "earlier" and j.revenue == "lower")
+    assert(B.suggest(data.brands, "nes", nil, 3)[1].name == "Nestlé")
+    -- app flow
+    package.loaded["dailygames/http"].download = function() return false end
+    ROUTES["https://capitalle.app/brandle"] = function(o) assert(o.raw); return '<script src="/_next/static/chunks/app/x.js"></script><script src="/_next/static/chunks/3330-abc.js"></script>', 200 end
+    ROUTES["https://capitalle.app/_next/static/chunks/3330-abc.js"] = function() return chunk, 200 end
+    ROUTES["https://capitalle.app/_next/static/chunks/app/x.js"] = function() return "nothing", 200 end
+    plug:onDailyGamesBrandle(); app = top(); assert(app._name == "brandle_app", tostring(app._name) .. " " .. tostring(app.text))
+    assert(STORE["brandle/data"].chunk == "/_next/static/chunks/3330-abc.js")
+    local wrong = app.brands[1].id == app.answer.id and app.brands[2] or app.brands[1]
+    app:guess(wrong); assert(#app.state.guesses == 1 and not app:isOver())
+    app:guess(app.answer); assert(app:isWon() and STORE["progress/brandle"].state.done)
+    app:copyShare()
+    local clip
+    for _, l in ipairs(LOG) do if l:find("^clip Brandle") then clip = l end end
+    assert(clip and clip:find("2/8", 1, true), tostring(clip))
+    app:onClose()
+    ROUTES["https://capitalle.app/_next/static/chunks/3330-abc.js"] = nil -- cached list is reused
+    plug:onDailyGamesBrandle(); assert(top()._name == "brandle_app" and top():isWon()); top():onClose()
+end
 -- HUB: ticks for finished games, "…" for started ones
 local function hubLabel(id)
     plug:onDailyGamesHub(); local hub = top()
@@ -193,7 +239,7 @@ plug:onDailyGamesConnections(); local capp = top(); capp:revealRest(); capp:save
 assert(STORE["progress/connections"].state.done == true, "connections marks done"); capp:onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==16, #hub.buttons); hub.buttons[16][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==17, #hub.buttons); hub.buttons[17][1].callback()
 -- COSTCODLE
 local C = require("dailygames/costcodle")
 assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)

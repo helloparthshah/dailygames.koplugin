@@ -1,6 +1,6 @@
 # Daily Games for KOReader
 
-Fourteen daily puzzles on your e-reader, designed for black-and-white e-ink: NYT Wordle, Connections, Strands and crosswords, plus trivia, food, geography and more. Works on any KOReader device, and integrates with the ZenOS launcher on jailbroken Kindles.
+Fifteen daily puzzles on your e-reader, designed for black-and-white e-ink: NYT Wordle, Connections, Strands and crosswords, plus trivia, food, geography and more. Works on any KOReader device, and integrates with the ZenOS launcher on jailbroken Kindles.
 
 ![Daily Games on a Kindle](docs/showcase.png)
 
@@ -54,6 +54,7 @@ Endless games are saved separately, so they never touch today's puzzle or its âœ
 | WhereTaken | wheretaken.teuteuf.fr | Where was the photo taken? Plus landmark, capital and city bonus rounds. |
 | More/Less | lessgames.com | Which of two things has more searches, streams, rating or price? |
 | Marveldle | marveldle.com | Guess the MCU character from attribute clues. |
+| Brandle | capitalle.app | Guess the brand from a blurred logo, with industry, country, founding year and revenue hints. |
 
 On e-ink, colours become shades: black means right, gray means partly right, and white or faded means wrong. Each game's **How to play** explains its marks.
 
@@ -61,7 +62,7 @@ On e-ink, colours become shades: black means right, gray means partly right, and
 
 ## Disclaimer
 
-This is an unofficial fan project. It is not affiliated with or endorsed by The New York Times, The Atlantic, Amuse Labs, Krillion, Costcodle, FoodGuessr, Teuteuf Games, Less Games or Marveldle. All puzzles, images and game data belong to their owners and are fetched from their public sites each day; nothing is bundled with the plugin. Krillion, More/Less and Marveldle answers are checked by their sites' servers, as in their web games. Please support the original games.
+This is an unofficial fan project. It is not affiliated with or endorsed by The New York Times, The Atlantic, Amuse Labs, Krillion, Costcodle, FoodGuessr, Teuteuf Games, Less Games, Marveldle or Capitalle. All puzzles, images and game data belong to their owners and are fetched from their public sites each day; nothing is bundled with the plugin. Krillion, More/Less and Marveldle answers are checked by their sites' servers, as in their web games. Please support the original games.
 
 ## Feedback
 
