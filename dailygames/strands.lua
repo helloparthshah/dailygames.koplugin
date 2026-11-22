@@ -14,6 +14,7 @@ local ButtonTable = require("ui/widget/buttontable")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
+local Archive = require("dailygames/archive")
 local NYT = require("dailygames/nyt")
 local Store = require("dailygames/store")
 local UI = require("dailygames/ui")
@@ -197,7 +198,7 @@ end
 function Strands:progressKey() return "strands" end
 
 function Strands:save()
-    Store.saveProgress("strands", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
 end
 
 function Strands:tapCell(r, c)
@@ -281,10 +282,11 @@ function Strands:giveHint()
     end
 end
 
-function Strands.launch(date)
-    local data, err = UI.withBusy("Loading Strands…", function() return NYT.strands(date) end)
+--- opts (endless mode): { state, on_next }; otherwise today's saved progress is used.
+function Strands.launch(date, opts)
+    local data, err, crash = UI.withBusy("Loading Strands…", function() return NYT.strands(date) end)
     if not data then
-        UI.error("Couldn't load Strands.\n" .. tostring(err))
+        UI.error("Couldn't load Strands.\n" .. tostring(err or crash))
         return
     end
     UIManager:show(Strands:new {
@@ -294,8 +296,14 @@ function Strands.launch(date)
         theme_words = data.theme_words,
         spangram = data.spangram,
         coords = data.coords,
-        state = Store.loadProgress("strands", date),
+        state = opts and opts.state or not opts and Store.loadProgress("strands", date) or nil,
+        on_next = opts and opts.on_next,
     })
+end
+
+--- Endless: a random past NYT puzzle (the archive is open back to the first one).
+function Strands.launchEndless(today)
+    Archive.play("strands", "2024-03-04", today, Strands.launch)
 end
 
 return Strands

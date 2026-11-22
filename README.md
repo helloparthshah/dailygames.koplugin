@@ -28,7 +28,7 @@ Every game has a ☰ menu with **How to play** and **Restart puzzle**.
 
 **Endless modes** (hub > Endless modes, or Tools > Daily Games > Endless modes) let you keep playing after today's puzzle, using what each site offers for free:
 
-- **Wordle:** a random past NYT Wordle.
+- **Wordle, Connections, Strands, The Mini, Daily Crossword:** a random past NYT puzzle from the archive (no subscription needed).
 - **FoodGuessr:** the site's Quick Play, five random dishes.
 - **Costcodle:** a random item from earlier days.
 - **Cuisine Match:** FoodGuessr's own random game.

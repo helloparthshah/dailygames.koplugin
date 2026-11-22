@@ -88,12 +88,13 @@ function NYT.strands(date)
 end
 
 --- kind: "mini" or "daily". The daily puzzle needs an NYT subscription cookie (NYT-S).
-function NYT.crossword(kind, nyt_s_cookie)
+-- date ("YYYY-MM-DD", optional): a past puzzle instead of today's.
+function NYT.crossword(kind, nyt_s_cookie, date)
     local headers
     if nyt_s_cookie and nyt_s_cookie ~= "" then
         headers = { ["Cookie"] = "NYT-S=" .. nyt_s_cookie }
     end
-    local data, err = Http.getJson(BASE .. "/crosswords/v6/puzzle/" .. kind .. ".json", headers)
+    local data, err = Http.getJson(BASE .. "/crosswords/v6/puzzle/" .. kind .. (date and "/" .. date or "") .. ".json", headers)
     if not data then return nil, err end
     local body = type(data.body) == "table" and data.body[1]
     if not body or not body.cells or not body.dimensions then

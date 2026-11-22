@@ -9,6 +9,7 @@ local ButtonTable = require("ui/widget/buttontable")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
+local Archive = require("dailygames/archive")
 local NYT = require("dailygames/nyt")
 local Store = require("dailygames/store")
 local UI = require("dailygames/ui")
@@ -183,7 +184,7 @@ end
 function Connections:progressKey() return "connections" end
 
 function Connections:save()
-    Store.saveProgress("connections", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
 end
 
 function Connections:toggle(word)
@@ -270,10 +271,11 @@ function Connections:revealRest()
     self.state.remaining = {}
 end
 
-function Connections.launch(date)
-    local data, err = UI.withBusy("Loading Connections…", function() return NYT.connections(date) end)
+--- opts (endless mode): { state, on_next }; otherwise today's saved progress is used.
+function Connections.launch(date, opts)
+    local data, err, crash = UI.withBusy("Loading Connections…", function() return NYT.connections(date) end)
     if not data then
-        UI.error("Couldn't load Connections.\n" .. tostring(err))
+        UI.error("Couldn't load Connections.\n" .. tostring(err or crash))
         return
     end
     UIManager:show(Connections:new {
@@ -281,8 +283,14 @@ function Connections.launch(date)
         number = data.number,
         categories = data.categories,
         board = data.board,
-        state = Store.loadProgress("connections", date),
+        state = opts and opts.state or not opts and Store.loadProgress("connections", date) or nil,
+        on_next = opts and opts.on_next,
     })
+end
+
+--- Endless: a random past NYT puzzle (the archive is open back to the first one).
+function Connections.launchEndless(today)
+    Archive.play("connections", "2023-06-12", today, Connections.launch)
 end
 
 return Connections

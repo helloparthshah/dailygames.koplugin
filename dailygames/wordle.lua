@@ -11,6 +11,7 @@ The row you're typing in has a thick black border.
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
+local Archive = require("dailygames/archive")
 local NYT = require("dailygames/nyt")
 local WORDS_DATA = require("dailygames/data_words5")
 local Store = require("dailygames/store")
@@ -227,52 +228,25 @@ function Wordle:onKey(key)
     self:refresh()
 end
 
-function Wordle.launch(date)
-    local data, err = UI.withBusy("Loading Wordle…", function() return NYT.wordle(date) end)
+--- opts (endless mode): { state, on_next }; otherwise today's saved progress is used.
+function Wordle.launch(date, opts)
+    local data, err, crash = UI.withBusy("Loading Wordle…", function() return NYT.wordle(date) end)
     if not data then
-        UI.error("Couldn't load Wordle.\n" .. tostring(err))
+        UI.error("Couldn't load Wordle.\n" .. tostring(err or crash))
         return
     end
     UIManager:show(Wordle:new {
         date = date,
         number = data.number,
         solution = data.solution,
-        state = Store.loadProgress("wordle", date),
+        state = opts and opts.state or not opts and Store.loadProgress("wordle", date) or nil,
+        on_next = opts and opts.on_next,
     })
 end
 
-local FIRST_WORDLE = os.time { year = 2021, month = 6, day = 19, hour = 12 }
-
---- A random earlier day's date ("YYYY-MM-DD"), from the first Wordle to yesterday.
-function Wordle.randomPastDate(today)
-    local y, m, d = today:match("^(%d+)-(%d+)-(%d+)$")
-    local t = os.time { year = tonumber(y), month = tonumber(m), day = tonumber(d), hour = 12 }
-    local days = math.floor((t - FIRST_WORDLE) / 86400 + 0.5)
-    return os.date("%Y-%m-%d", FIRST_WORDLE + math.random(0, math.max(0, days - 1)) * 86400)
-end
-
---- Endless: a random past NYT Wordle. An unfinished one is resumed.
+--- Endless: a random past NYT Wordle (the archive is open back to the first one).
 function Wordle.launchEndless(today)
-    local saved = Store.get("progress/wordle_endless")
-    local date = type(saved) == "table" and type(saved.state) == "table" and not saved.state.done
-        and saved.date or nil
-    local state = date and saved.state or nil
-    if not date then
-        math.randomseed(os.time())
-        date = Wordle.randomPastDate(today)
-    end
-    local data, err, crash = UI.withBusy("Loading Wordle…", function() return NYT.wordle(date) end)
-    if not data then return UI.error("Couldn't load Wordle.\n" .. tostring(err or crash)) end
-    UIManager:show(Wordle:new {
-        date = date,
-        number = data.number,
-        solution = data.solution,
-        state = state,
-        on_next = function()
-            Store.clearProgress("wordle_endless")
-            Wordle.launchEndless(today)
-        end,
-    })
+    Archive.play("wordle", "2021-06-19", today, Wordle.launch)
 end
 
 Wordle.evaluate = evaluate -- exposed for tests
