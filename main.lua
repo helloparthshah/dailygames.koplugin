@@ -22,6 +22,7 @@ local _ = require("gettext")
 -- Plugin-local modules must be required at load time (KOReader only adds the
 -- plugin folder to package.path while loading main.lua).
 local Connections = require("dailygames/connections")
+local Costcodle = require("dailygames/costcodle")
 local Crossword = require("dailygames/crossword")
 local Krillion = require("dailygames/krillion")
 local Store = require("dailygames/store")
@@ -48,6 +49,8 @@ local GAMES = {
       launch = function() Crossword.launch("mini", nytCookie()) end },
     { id = "crossword", event = "Crossword", text = _("Daily Crossword"),
       launch = function() Crossword.launch("daily", nytCookie()) end },
+    { id = "costcodle", event = "Costcodle", text = _("Costcodle"), launch = function() Costcodle.launch(today()) end },
+    -- Krillion stays last (it has its own submenu).
     { id = "krillion", event = "Krillion", text = _("Krillion"), launch = function() Krillion.play() end },
 }
 

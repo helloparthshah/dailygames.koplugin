@@ -107,5 +107,19 @@ ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
 -- HUB
-plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==7); hub.buttons[7][1].callback()
+plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==8); hub.buttons[8][1].callback()
+-- COSTCODLE
+local C = require("dailygames/costcodle")
+assert(C.gameNumber("2026-11-22") == 1160 and C.productId(1160) == 1220 and C.productId(100) == 100)
+local j = C.judge(5.80, 5.99); assert(j.closeness == "win")
+j = C.judge(5.00, 5.99); assert(j.closeness == "near" and j.direction == "higher")
+j = C.judge(12, 5.99); assert(j.closeness == "far" and j.direction == "lower")
+ROUTES["https://costcodle.com/games.json"] = function() return { ["game-" .. C.productId(C.gameNumber(d))] = { name = "Chicken Thighs", price = "$5.99" } }, 200 end
+plug:onDailyGamesCostcodle(); app = top(); assert(app._name == "costcodle_app", tostring(app._name))
+for _, k in ipairs { "1", "2", "ENTER" } do app:onKey(k) end
+assert(#app.state.guesses == 1 and app.state.guesses[1] == 12)
+for _, k in ipairs { "5", ".", ".", "9", "9", "9", "ENTER" } do app:onKey(k) end
+assert(app.state.guesses[2] == 5.99 and app:isWon(), tostring(app.state.guesses[2]))
+print("costcodle:", app.status)
+app:onClose()
 print("ALL NYT TESTS PASSED")

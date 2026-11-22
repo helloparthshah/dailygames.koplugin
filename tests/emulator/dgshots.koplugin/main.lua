@@ -157,6 +157,16 @@ local STEPS = {
     function() shot("daily_crossword") end,
     function() closeAllGames() end,
 
+    -- Costcodle: one high guess, then a close one
+    function() mod("costcodle").launch(today) end,
+    function() shot("costcodle_start") end,
+    function() local app = top(); for _, k in ipairs { "9", "9", "ENTER" } do app:onKey(k) end
+        local p = string.format("%.2f", app.price * 0.85)
+        for ch in p:gmatch(".") do app:onKey(ch) end; app:onKey("ENTER")
+        for ch in ("12"):gmatch(".") do app:onKey(ch) end end,
+    function() shot("costcodle_guesses") end,
+    function() closeAllGames() end,
+
     -- Krillion (open only)
     function() mod("krillion").play() end,
     function() shot("krillion_intro") end,
