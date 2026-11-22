@@ -27,9 +27,15 @@ local c = calls[#calls]; print("complete record", c.record, c.score, table.conca
 plug:onDailyGamesKrillion(); assert(top()._name=="TextViewer" and top().text:find("already dove"))
 -- stats
 local Kr = require("dailygames/krillion"); Kr.showStats(); print(top().text)
--- reset today's dive: replay is allowed and not submitted again
+-- reset today's dive from the summary screen: replay is allowed and not submitted again
 os.date = (function(real) return function(fmt, t) if fmt == "!%Y-%m-%d" then return "2026-11-21" end return real(fmt, t) end end)(os.date)
-Kr.resetToday(); top().ok_callback()
+plug:onDailyGamesKrillion(); local summary = top(); assert(summary._name == "TextViewer")
+local resetBtn
+for _, b in ipairs(summary.buttons_table[1]) do if b.text == "Reset today's dive" then resetBtn = b end end
+assert(resetBtn, "summary has a reset button")
+resetBtn.callback(); top().ok_callback()
+assert(top()._name == "ConfirmBox" and top().text:find("Seven prompts"), "dive restarts after reset"); UIManager_dummy = nil
+for i = #SHOWN, 1, -1 do SHOWN[i] = nil end
 assert(STORE["krillion/history"]["2026-11-21"] == nil and STORE["krillion/replay_date"] == "2026-11-21")
 local before = #calls
 plug:onDailyGamesKrillion(); assert(top()._name == "ConfirmBox", "fresh intro after reset")
