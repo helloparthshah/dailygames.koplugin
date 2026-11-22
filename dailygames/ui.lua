@@ -19,6 +19,7 @@ Visual language used by every game:
 
 local Blitbuffer = require("ffi/blitbuffer")
 local ButtonDialog = require("ui/widget/buttondialog")
+local ConfirmBox = require("ui/widget/confirmbox")
 local Device = require("device")
 local Font = require("ui/font")
 local Geom = require("ui/geometry")
@@ -405,6 +406,19 @@ function FullscreenApp:showMenu()
             callback = function() UIManager:close(dialog); item.callback() end,
         } })
     end
+    if self:progressKey() then
+        table.insert(buttons, { {
+            text = "Restart puzzle",
+            callback = function()
+                UIManager:close(dialog)
+                UIManager:show(ConfirmBox:new {
+                    text = "Restart today's puzzle? Your progress will be cleared.",
+                    ok_text = "Restart",
+                    ok_callback = function() self:restart() end,
+                })
+            end,
+        } })
+    end
     if self.help_text then
         table.insert(buttons, { {
             text = "How to play",
@@ -420,6 +434,22 @@ function FullscreenApp:showMenu()
     } })
     dialog = ButtonDialog:new { title = self:getTitle(), buttons = buttons }
     UIManager:show(dialog)
+end
+
+--- Override: the Store progress key for this game (enables "Restart puzzle").
+function FullscreenApp:progressKey()
+    return nil
+end
+
+--- Clears today's saved progress and starts the puzzle over.
+function FullscreenApp:restart()
+    local Store = require("dailygames/store")
+    Store.clearProgress(self:progressKey())
+    self.state = nil
+    self.status = ""
+    if self.setup then self:setup() end
+    self:rebuild()
+    UIManager:setDirty(self, function() return "full", self.dimen end)
 end
 
 --- Sets the message line under the board (instead of a popup) and redraws.

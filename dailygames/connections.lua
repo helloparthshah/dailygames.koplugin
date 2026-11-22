@@ -122,7 +122,7 @@ function Connections:setup()
         self.by_title[cat.title] = cat
     end
     self.state = self.state or {
-        remaining = self.board, -- words still on the board, in display order
+        remaining = { unpack(self.board) }, -- words still on the board, in display order
         selected = {},          -- word -> true
         solved = {},            -- list of { title = ..., revealed = bool }
         mistakes = 0,
@@ -174,6 +174,8 @@ function Connections:buildBody(width, height)
     local board = Board:new { width = w, height = board_h, app = self }
     return board, bottom
 end
+
+function Connections:progressKey() return "connections" end
 
 function Connections:save()
     Store.saveProgress("connections", self.date, self.state)

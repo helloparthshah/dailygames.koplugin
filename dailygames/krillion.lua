@@ -420,7 +420,10 @@ function Game:finish()
     local score = sumScore(run.results)
     local player = Krillion.playerId()
 
-    local resp = UI.withBusy("Surfacing…", function()
+    -- A replay after "Reset today's dive" is kept local: the first result
+    -- already counted on krillion.io.
+    local replay = Store.get("krillion/replay_date") == run.date
+    local resp = not replay and UI.withBusy("Surfacing…", function()
         local receipts, complete = {}, true
         for idx, r in ipairs(run.results) do
             if not r.receipt and r.score == 0 then
@@ -522,6 +525,34 @@ function Krillion.showSummary(date, entry, resets_at, already)
                 end,
             },
         } },
+    })
+end
+
+--- Today's puzzle date as krillion.io counts it (new dive at midnight US Eastern,
+-- approximated as 05:00 UTC).
+function Krillion.today()
+    return os.date("!%Y-%m-%d", os.time() - 5 * 3600)
+end
+
+--- Clears today's dive so it can be played again (the replay isn't submitted).
+function Krillion.resetToday()
+    UIManager:show(ConfirmBox:new {
+        text = "Reset today's dive?\n\nYou can play it again here; the new score stays on this device and isn't sent to krillion.io.",
+        ok_text = "Reset",
+        ok_callback = function()
+            local date = Krillion.today()
+            local history = Krillion.history()
+            local current = Store.get("krillion/current")
+            local has_current = type(current) == "table" and current.date == date
+            if not history[date] and not has_current then
+                return UI.notify("Nothing to reset yet today.", 1.5)
+            end
+            history[date] = nil
+            Store.set("krillion/history", history, true)
+            Store.set("krillion/replay_date", date, true)
+            Store.set("krillion/current", nil)
+            UI.notify("Today's dive was reset.", 1.5)
+        end,
     })
 end
 

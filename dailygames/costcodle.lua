@@ -192,6 +192,8 @@ function App:buildBody(width, height)
     return top, keypad
 end
 
+function App:progressKey() return "costcodle" end
+
 function App:menuItems()
     if not self:isOver() then return {} end
     return { { text = "Copy share text", callback = function()
@@ -242,6 +244,8 @@ function Costcodle.launch(date)
         end
         if entry.image and not exists(image_path) then
             os.execute("mkdir -p '" .. cache .. "'")
+            -- drop earlier days' photos so the cache doesn't grow
+            os.execute("rm -f '" .. cache .. "'/costcodle-*.jpg")
             Http.download(entry.image, image_path)
         end
         return entry

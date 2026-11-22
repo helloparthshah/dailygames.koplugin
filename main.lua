@@ -194,6 +194,7 @@ function DailyGames:addToMainMenu(menu_items)
                 callback = function() Krillion.setTimedRounds(not Krillion.timedRounds()) end,
             },
             { text = _("How to play"), keep_menu_open = true, callback = Krillion.showHelp },
+            { text = _("Reset today's dive"), keep_menu_open = true, callback = Krillion.resetToday },
         },
     })
 

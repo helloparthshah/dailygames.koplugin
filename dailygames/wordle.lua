@@ -182,6 +182,8 @@ function Wordle:copyShare()
     UI.copy(table.concat(lines, "\n"))
 end
 
+function Wordle:progressKey() return "wordle" end
+
 function Wordle:save()
     Store.saveProgress("wordle", self.date, self.state)
 end

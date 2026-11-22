@@ -27,7 +27,18 @@ assert(app:isWon()); print("wordle status:", app.status)
 assert(STORE["progress/wordle"].state.guesses[2]=="CRANE")
 app:onClose()
 -- relaunch restores
-plug:onDailyGamesWordle(); assert(top():isWon()); top():onClose()
+plug:onDailyGamesWordle(); assert(top():isWon())
+-- Restart puzzle from the menu clears today's progress
+app = top(); app:showMenu(); local menu = top(); assert(menu._name == "ButtonDialog")
+local restart
+for _, row in ipairs(menu.buttons) do if row[1].text == "Restart puzzle" then restart = row[1] end end
+assert(restart, "menu has Restart puzzle"); restart.callback(); top().ok_callback()
+assert(#app.state.guesses == 0 and not app:isOver() and STORE["progress/wordle"] == nil)
+app:onKey("A"); app:onKey("B"); assert(app.state.current == "AB")
+app:onClose()
+-- a saved game from another day is ignored
+STORE["progress/wordle"] = { date = "2000-01-01", state = { guesses = { "CRANE" }, current = "" } }
+plug:onDailyGamesWordle(); assert(#top().state.guesses == 0, "yesterday's game is not loaded"); top():onClose()
 
 -- CONNECTIONS
 local cats = {}

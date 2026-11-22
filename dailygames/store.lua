@@ -49,6 +49,10 @@ function Store.loadProgress(game, date)
     end
 end
 
+function Store.clearProgress(game)
+    Store.set("progress/" .. game, nil)
+end
+
 function Store.saveProgress(game, date, state, defer)
     Store.set("progress/" .. game, { date = date, state = state }, defer)
 end
