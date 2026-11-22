@@ -510,22 +510,34 @@ function Krillion.showSummary(date, entry, resets_at, already)
         table.insert(lines, "Next dive: " .. when .. " (UTC)")
     end
 
-    UIManager:show(TextViewer:new {
+    local viewer
+    local row = { {
+        text = "Copy share text",
+        callback = function()
+            if Device.input and Device.input.setClipboardText then
+                Device.input.setClipboardText(share)
+                toast("Copied.")
+            end
+        end,
+    } }
+    if date == Krillion.today() then
+        table.insert(row, {
+            text = "Reset today's dive",
+            callback = function()
+                Krillion.resetToday(function()
+                    UIManager:close(viewer)
+                    Krillion.play()
+                end)
+            end,
+        })
+    end
+    viewer = TextViewer:new {
         title = "Krillion",
         text = table.concat(lines, "\n"),
         add_default_buttons = true,
-        buttons_table = { {
-            {
-                text = "Copy share text",
-                callback = function()
-                    if Device.input and Device.input.setClipboardText then
-                        Device.input.setClipboardText(share)
-                        toast("Copied.")
-                    end
-                end,
-            },
-        } },
-    })
+        buttons_table = { row },
+    }
+    UIManager:show(viewer)
 end
 
 --- Today's puzzle date as krillion.io counts it (new dive at midnight US Eastern,
@@ -535,7 +547,8 @@ function Krillion.today()
 end
 
 --- Clears today's dive so it can be played again (the replay isn't submitted).
-function Krillion.resetToday()
+--- on_done (optional) runs after a successful reset, e.g. to start the dive again.
+function Krillion.resetToday(on_done)
     UIManager:show(ConfirmBox:new {
         text = "Reset today's dive?\n\nYou can play it again here; the new score stays on this device and isn't sent to krillion.io.",
         ok_text = "Reset",
@@ -551,7 +564,11 @@ function Krillion.resetToday()
             Store.set("krillion/history", history, true)
             Store.set("krillion/replay_date", date, true)
             Store.set("krillion/current", nil)
-            UI.notify("Today's dive was reset.", 1.5)
+            if on_done then
+                on_done()
+            else
+                UI.notify("Today's dive was reset.", 1.5)
+            end
         end,
     })
 end
