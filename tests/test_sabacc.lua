@@ -1,4 +1,5 @@
 dofile(STUBS)
+local UIManager = require("ui/uimanager")
 local Sabacc = dofile(PLUGDIR .. "/dailygames/sabacc.lua")
 package.loaded["dailygames/sabacc"] = Sabacc
 math.randomseed(42)
@@ -154,6 +155,12 @@ paint(app)
 press(app, "Next hand")
 assert(app.game.hand_no >= 2)
 paint(app)
+
+-- How to play opens a scrollable viewer with the full rules
+app:showHelp()
+assert(top()._name == "TextViewer" and top().text:find("Outer Rim Sabacc League") and top().text:find("Straight Khyron")
+    and top().text:find("CONTROLS") and top().text:find("HOUSE CHOICES"))
+UIManager:close(top())
 
 -- a saved table is resumed
 local hand_no = app.game.hand_no
