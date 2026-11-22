@@ -164,6 +164,15 @@ local STEPS = {
     function() shot("atlantic_typed") end,
     function() closeAllGames() end,
 
+    -- FoodGuessr: type, then guess a wrong country
+    function() mod("foodguessr").launch() end,
+    function() shot("foodguessr_start") end,
+    function() local app = top(); for _, k in ipairs { "J", "A", "P" } do app:onKey(k) end end,
+    function() shot("foodguessr_typed") end,
+    function() top():guess("JP") end,
+    function() shot("foodguessr_guess") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,
