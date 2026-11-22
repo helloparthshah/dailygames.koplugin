@@ -499,6 +499,18 @@ function FullscreenApp:showMenu()
     UIManager:show(dialog)
 end
 
+--- Override: true once today's puzzle is finished (won or lost). Saved as
+-- state.done so the hub can show a tick without loading the game.
+function FullscreenApp:isComplete()
+    return self.isOver and self:isOver() or false
+end
+
+--- Records completion in the state and returns it (use when saving).
+function FullscreenApp:markDone()
+    self.state.done = self:isComplete() and true or nil
+    return self.state
+end
+
 --- Override: the Store progress key for this game (enables "Restart puzzle").
 function FullscreenApp:progressKey()
     return nil

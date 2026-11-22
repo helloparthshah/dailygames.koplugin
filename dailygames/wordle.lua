@@ -196,7 +196,7 @@ end
 function Wordle:progressKey() return "wordle" end
 
 function Wordle:save()
-    Store.saveProgress("wordle", self.date, self.state)
+    Store.saveProgress("wordle", self.date, self:markDone())
 end
 
 function Wordle:onKey(key)

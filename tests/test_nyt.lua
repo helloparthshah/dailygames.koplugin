@@ -125,6 +125,28 @@ app:onClose(); assert(STORE["progress/crossword_mini"].date=="2026-11-22")
 ROUTES[N.."/crosswords/v6/puzzle/daily.json"] = function(o) assert(o.headers and o.headers.Cookie=="NYT-S=abc"); return {body={body}, publicationDate="2026-11-22"}, 200 end
 STORE.nyt_s_cookie="abc"; plug:onDailyGamesCrossword(); assert(top()._name=="crossword_app"); top():onClose()
 
+-- HUB: ticks for finished games, "…" for started ones
+local function hubLabel(id)
+    plug:onDailyGamesHub(); local hub = top()
+    for _, row in ipairs(hub.buttons) do
+        if row[1].text:find(id, 1, true) then local t = row[1].text; UIManager_close = hub; return t end
+    end
+end
+CLOCK = os.time(os.date("*t")) -- the stubs fake os.time(); use the real time here
+STORE["progress/wordle"] = { date = d, state = { guesses = { "CRANE" }, current = "", done = true } }
+STORE["progress/connections"] = { date = d, state = { remaining = {}, mistakes = 1 } }
+STORE["progress/strands"] = { date = "2000-01-01", state = { done = true } }
+plug:onDailyGamesHub(); local hubd = top(); local labels = {}
+for _, row in ipairs(hubd.buttons) do labels[#labels + 1] = row[1].text end
+local joined = table.concat(labels, "|")
+assert(joined:find("Wordle  ✓", 1, true), joined)
+assert(joined:find("Connections  …", 1, true), joined)
+assert(joined:find("|Strands|", 1, true), "yesterday's finished game has no tick: " .. joined)
+hubd.buttons[#hubd.buttons][1].callback()
+-- a finished game records done when saved
+plug:onDailyGamesConnections(); local capp = top(); capp:revealRest(); capp:save()
+assert(STORE["progress/connections"].state.done == true, "connections marks done"); capp:onClose()
+
 -- HUB
 plug:onDailyGamesHub(); local hub=top(); assert(hub._name=="ButtonDialog" and #hub.buttons==15); hub.buttons[15][1].callback()
 -- COSTCODLE

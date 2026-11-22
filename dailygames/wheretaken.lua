@@ -143,6 +143,8 @@ function App:setup()
     self.input = ""
 end
 
+function App:isComplete() return self.state.phase == "done" end
+
 function App:progressKey() return "wheretaken" end
 
 function App:getTitle()
@@ -234,7 +236,7 @@ function App:nextPhase()
 end
 
 function App:save()
-    Store.saveProgress("wheretaken", self.date, self.state)
+    Store.saveProgress("wheretaken", self.date, self:markDone())
 end
 
 local function photo(path, w, h)
