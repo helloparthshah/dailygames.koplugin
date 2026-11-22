@@ -174,6 +174,59 @@ function UI.wrap2(f, text, w, bold)
     return { text }
 end
 
+--- Greedy word wrap of `text` into lines no wider than w (words longer than
+-- w are kept whole; callers shrink the font until they fit).
+local function wrapLines(f, text, w, bold)
+    local lines, line = {}, ""
+    for word in tostring(text):gmatch("%S+") do
+        local try = line == "" and word or (line .. " " .. word)
+        if line ~= "" and (measure(f, try, bold)) > w then
+            table.insert(lines, line)
+            line = word
+        else
+            line = try
+        end
+    end
+    if line ~= "" then table.insert(lines, line) end
+    return lines
+end
+
+--- Largest face (and the wrapped lines) so `text` fits w x h in at most
+-- max_lines lines. Long text may end up small; the last resort cuts it with "…".
+local lines_cache = {}
+function UI.fitLines(text, w, h, max_lines, opts)
+    opts = opts or {}
+    w, h = math.floor(w), math.floor(h)
+    local key = tostring(text) .. "|" .. w .. "|" .. h .. "|" .. max_lines .. tostring(opts.bold)
+    if lines_cache[key] then return lines_cache[key][1], lines_cache[key][2] end
+    local scale = math.max(0.5, Screen:scaleBySize(100) / 100)
+    local size = math.max(6, math.floor(h / max_lines / scale * 0.95))
+    local min = opts.min or 7
+    local f, lines
+    while size >= min do
+        f = face(size)
+        lines = wrapLines(f, text, w, opts.bold)
+        local ok = #lines <= max_lines
+        if ok then
+            for _, l in ipairs(lines) do
+                local lw, lh = measure(f, l, opts.bold)
+                if lw > w or lh * #lines > h then ok = false break end
+            end
+        end
+        if ok then break end
+        size = size - 1
+    end
+    -- still too long at the minimum size: keep max_lines lines, end with an ellipsis
+    if #lines > max_lines then
+        local kept = {}
+        for i = 1, max_lines do kept[i] = lines[i] end
+        kept[max_lines] = kept[max_lines] .. "…"
+        lines = kept
+    end
+    lines_cache[key] = { f, lines }
+    return f, lines
+end
+
 -- shapes ---------------------------------------------------------------------
 
 function UI.drawBorder(bb, x, y, w, h, t, color)

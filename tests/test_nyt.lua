@@ -193,6 +193,13 @@ for c = 0, 4 do for r = (c == 0 and 2 or 1), 5 do app:pick(r % 2 == 0 and "right
 assert(app:isOver() and guesses == 25, "all rounds played: " .. guesses)
 print("moreless score:", app:score())
 app:onClose()
+-- text fitting: long lists wrap into at most N lines that fit the width
+do
+    local UIm = require("dailygames/ui")
+    local f, lines = UIm.fitLines("Strength, Resistance, Regeneration, Elemental", 120, 60, 3)
+    assert(#lines >= 2 and #lines <= 3, #lines)
+    for _, l in ipairs(lines) do assert(UIm.measure(f, l) <= 120, l) end
+end
 -- MARVELDLE
 local MV = require("dailygames/marveldle")
 local A = "https://api.marveldle.com/api"
