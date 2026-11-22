@@ -21,7 +21,8 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "..", "zenpm")
 
 DESCRIPTION = ("Daily puzzles designed for e-ink: NYT Wordle, Connections, Strands, Mini and Daily Crossword, "
                "The Atlantic crossword, Krillion, FoodGuessr (plus Cuisine Match and Plate-Off), Costcodle, "
-               "WhereTaken, More/Less, Marveldle and Brandle, with endless modes. "
+               "WhereTaken, More/Less, Marveldle and Brandle, with endless modes, plus Sabacc: "
+               "an offline Corellian Spike card game against three computer players. "
                "Adds itself to the ZenOS App Launcher.")
 
 def github(path):
