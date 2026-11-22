@@ -53,4 +53,4 @@ Tests run against stubbed KOReader modules:
 for t in tests/test_*.lua; do luajit tests/run.lua "$t"; done
 ```
 
-To release, push a tag like `v1.0.1`. GitHub Actions runs the tests and attaches `dailygames.koplugin.zip` to the release.
+To release, push a tag like `v1.0.1`, or run the **Release** workflow from the Actions tab with a version. It runs the tests and attaches `dailygames.koplugin.zip` to the release.
