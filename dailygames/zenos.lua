@@ -51,6 +51,37 @@ function ZenOS.isAvailable()
     return launcherModel() ~= nil
 end
 
+--- Points launcher entries for `key` whose method no longer exists on `plugin`
+-- at `method` instead (e.g. an entry saved by an older version). ZenOS greys
+-- out entries whose method it can't find.
+-- Returns the number of entries fixed, or nil when ZenOS isn't available.
+function ZenOS.repairLauncherEntries(key, plugin, method)
+    local model = launcherModel()
+    if not model then return nil end
+    local ok, fixed = pcall(function()
+        local cfg = model.ensure()
+        local count = 0
+        local function walk(entries)
+            for _, entry in ipairs(entries or {}) do
+                if type(entry) == "table" then
+                    local p = entry.plugin
+                    if entry.type == "plugin" and type(p) == "table" and p.key == key
+                            and type(plugin[p.method]) ~= "function" then
+                        p.method = method
+                        count = count + 1
+                    elseif entry.type == "folder" then
+                        walk(entry.children)
+                    end
+                end
+            end
+        end
+        walk(cfg.entries)
+        if count > 0 then model.save(cfg) end
+        return count
+    end)
+    return ok and fixed or nil
+end
+
 --- Adds a launcher entry unless one for `key` already exists.
 -- opts: key (plugin name), method (plugin method to call), label, icon (preferred icon name)
 -- Returns "added", "exists", or nil when ZenOS isn't available.

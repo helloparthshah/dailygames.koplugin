@@ -43,4 +43,20 @@ package.loaded["modules/menu/app_launcher/model"] = nil
 STORE.zenos_launcher_added = nil
 P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
 assert(STORE.zenos_launcher_added == nil)
+-- Stale entry from an older version (method that no longer exists) is repaired.
+package.loaded["modules/menu/app_launcher/model"] = {
+    ensure = function() return cfg end,
+    save = function(c) saves = saves + 1; cfg = c; return c end,
+    next_id = function(c) c.next_id = c.next_id + 1; return "al_" .. c.next_id end,
+}
+cfg.entries = { { id = "al_1", type = "plugin", label = "Daily Games", plugin = { key = "dailygames", method = "onGone" } } }
+local before = saves
+P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
+assert(cfg.entries[1].plugin.method == "open" and #cfg.entries == 1 and saves > before, "stale entry repaired")
+-- v1.0.0 entries used "launch": still works and is left alone.
+cfg.entries[1].plugin.method = "launch"; before = saves
+P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
+assert(cfg.entries[1].plugin.method == "launch" and saves == before)
+local p2 = P:new { ui = { menu = { registerToMainMenu = function() end } } }; runq()
+p2:launch(); assert(top()._name == "ButtonDialog", "launch alias shows hub")
 print("ZENOS PASSED")
