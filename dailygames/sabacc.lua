@@ -1085,15 +1085,27 @@ function Screen:drawTable(bb, x, y)
     local r = math.floor(math.min(self.pile_h * 0.44, (right - left) * 0.4))
     local cx, cy = math.floor((left + right) / 2), top + math.floor(self.pile_h / 2)
     UI.fillCircle(bb, cx, cy, r, UI.BLACK)
-    for k = 0, 7 do
-        local a = k * math.pi / 4 + math.pi / 8
-        local nx, ny = cx + math.cos(a) * r * 0.86, cy + math.sin(a) * r * 0.86
-        local q = r * 0.13
-        fillPoly(bb, { { nx - q, ny - q }, { nx + q, ny - q }, { nx + q, ny + q }, { nx - q, ny + q } }, UI.WHITE)
+    -- six curved edge inserts that follow the rim, like a real chip
+    local function arcSeg(a0, a1, r0, r1)
+        local pts, steps = {}, 8
+        for i = 0, steps do
+            local a = a0 + (a1 - a0) * i / steps
+            pts[#pts + 1] = { cx + math.cos(a) * r1, cy + math.sin(a) * r1 }
+        end
+        for i = steps, 0, -1 do
+            local a = a0 + (a1 - a0) * i / steps
+            pts[#pts + 1] = { cx + math.cos(a) * r0, cy + math.sin(a) * r0 }
+        end
+        return pts
     end
-    UI.fillCircle(bb, cx, cy, math.floor(r * 0.68), UI.WHITE)
-    UI.ringCircle(bb, cx, cy, math.floor(r * 0.6), math.max(2, math.floor(r * 0.05)), UI.BLACK)
-    local pf = UI.fitFace({ tostring(g.pot), "88" }, r * 1.0, r * 0.5, { font = MONO, bold = true })
+    local half = math.pi / 6 * 0.42
+    for k = 0, 5 do
+        local a = k * math.pi / 3 - math.pi / 2
+        fillPoly(bb, arcSeg(a - half, a + half, r * 0.76, r * 0.93), UI.WHITE)
+    end
+    UI.fillCircle(bb, cx, cy, math.floor(r * 0.66), UI.WHITE)
+    UI.ringCircle(bb, cx, cy, math.floor(r * 0.58), math.max(2, math.floor(r * 0.04)), UI.BLACK)
+    local pf = UI.fitFace({ tostring(g.pot), "88" }, r * 0.86, r * 0.46, { font = MONO, bold = true })
     UI.drawText(bb, pf, tostring(g.pot), cx - r, cy - math.floor(r * 0.42), 2 * r, math.floor(r * 0.6), UI.BLACK, true)
     UI.drawText(bb, self.face_label, "POT", cx - r, cy + math.floor(r * 0.12), 2 * r, math.floor(r * 0.3), UI.DARK)
     UI.drawText(bb, self.face_label, "SABACC POT " .. g.sabacc_pot, cx - 3 * r, top + self.pile_h, 6 * r, label_h, UI.BLACK, true)
