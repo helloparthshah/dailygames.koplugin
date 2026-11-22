@@ -41,6 +41,22 @@ assert(#g.players == 4 and g.pot == 4 * Sabacc.ANTE and g.phase == "act" and g.r
 for _, p in ipairs(g.players) do assert(#p.hand == 2 and p.credits == 100 - Sabacc.ANTE) end
 assert(#g.discard == 1 and #g.deck == 62 - 9)
 
+-- gain, then drop the new card or an old one; a full hand must drop
+do
+    local t = Sabacc.newTable()
+    local before = #t.players[1].hand
+    assert(Sabacc.act(t, "gain") and t.phase == "drop" and #t.players[1].hand == before + 1)
+    assert(not Sabacc.bet(t, "check"), "no betting mid-move")
+    local new = t.players[1].hand[t.new]
+    assert(Sabacc.act(t, "drop", t.new) and t.phase == "bet" and #t.players[1].hand == before)
+    assert(t.discard[#t.discard] == new or t.phase == "bet") -- the dropped card went to the discard pile (AIs may have covered it)
+    t = Sabacc.newTable()
+    t.players[1].hand = { { v = 1, s = 1 }, { v = 2, s = 1 }, { v = 3, s = 1 }, { v = 4, s = 1 }, { v = 5, s = 1 } }
+    assert(Sabacc.act(t, "gain") and #t.players[1].hand == 6)
+    assert(not Sabacc.act(t, "keep"), "six cards must drop one")
+    assert(Sabacc.act(t, "drop", 1) and #t.players[1].hand == 5)
+end
+
 -- illegal moves are refused
 assert(not Sabacc.act(g, "swap", nil))
 assert(not Sabacc.bet(g, "check"), "no betting before acting")
@@ -59,6 +75,10 @@ for hand = 1, 300 do
         if g.phase == "act" then
             local ok = Sabacc.act(g, moves[math.random(#moves)], math.random(#g.players[1].hand))
             if not ok then assert(Sabacc.act(g, "stand")) end
+        elseif g.phase == "drop" then
+            if math.random() < 0.5 or not Sabacc.act(g, "keep") then
+                assert(Sabacc.act(g, "drop", math.random(#g.players[1].hand)))
+            end
         elseif g.phase == "bet" then
             if not Sabacc.bet(g, bets[math.random(#bets)]) then assert(Sabacc.bet(g, "check")) end
         elseif g.phase == "call" then
@@ -66,7 +86,7 @@ for hand = 1, 300 do
         end
         assert(total(g) == before, "credits not conserved")
         for _, p in ipairs(g.players) do
-            assert(#p.hand >= 1 and #p.hand <= Sabacc.MAX_HAND, "hand size")
+            assert(#p.hand >= 1 and #p.hand <= Sabacc.MAX_HAND + (g.phase == "drop" and 1 or 0), "hand size")
             assert(p.credits >= 0, "negative credits")
         end
         -- every card is somewhere exactly once
@@ -95,6 +115,9 @@ local app = top()
 assert(app._name == "sabacc_app" or app.name == "sabacc_app")
 paint(app)
 press(app, "Gain")
+assert(app.game.phase == "drop" and #app.game.players[1].hand == 3)
+paint(app)
+press(app, "Keep")
 assert(app.game.phase == "bet" and #app.game.players[1].hand == 3)
 assert(STORE["sabacc/table"] == app.game, "saved")
 paint(app)
@@ -109,7 +132,7 @@ while app.game.phase ~= "done" do
         for _, hit in ipairs(board.hits) do if hit.card == 1 then h = hit end end
         board:onTap(nil, { pos = { x = h.x + 5, y = 100 + h.y + 5 } })
         assert(app.sel == 1, "tap picks a card")
-        press(app, "Swap")
+        press(app, "Take discard")
     elseif app.game.phase == "bet" then
         press(app, "Check")
     elseif app.game.phase == "call" then

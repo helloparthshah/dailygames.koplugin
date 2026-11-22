@@ -212,8 +212,9 @@ local function aiAct(g, p)
             opts[#opts + 1] = { k = "discard", i = i, s = Sabacc.evaluate(h).score + 0.3 }
         end
     end
-    if #p.hand < MAX_HAND and #g.deck > 0 then
-        -- expected result of a draw, from a sample of what's left in the deck
+    if #g.deck > 0 then
+        -- expected result of a draw (keeping the best hand after an optional
+        -- drop), from a sample of what's left in the deck
         local total = 0
         for _ = 1, 12 do
             local h = { unpack(p.hand) }
@@ -226,7 +227,21 @@ local function aiAct(g, p)
     local o = (math.random() < 0.15 and opts[2]) or opts[1]
     if o.k == "gain" then
         p.hand[#p.hand + 1] = draw(g)
-        p.last = "Gained a card."
+        -- keep it, or drop whichever card leaves the best hand
+        local best, drop = #p.hand <= MAX_HAND and Sabacc.evaluate(p.hand).score or math.huge, nil
+        for i = 1, #p.hand do
+            local h = {}
+            for j, c in ipairs(p.hand) do if j ~= i then h[#h + 1] = c end end
+            local sc = Sabacc.evaluate(h).score + 0.1
+            if sc < best then best, drop = sc, i end
+        end
+        if drop then
+            local c = table.remove(p.hand, drop)
+            g.discard[#g.discard + 1] = c
+            p.last = "Gained a card, dropped " .. cardName(c) .. "."
+        else
+            p.last = "Gained a card."
+        end
     elseif o.k == "swap" then
         local c = table.remove(g.discard)
         g.discard[#g.discard + 1] = p.hand[o.i]
@@ -327,22 +342,44 @@ end
 --- Your move in a round: "gain", "swap" (card i), "discard" (card i) or "stand".
 -- The computer players then move. Returns false if the move isn't allowed.
 function Sabacc.act(g, kind, i)
-    if g.phase ~= "act" then return false end
     local me = you(g)
     local text
+    if g.phase == "drop" then
+        -- after gaining: keep everything, or drop one card (the new one included)
+        if kind == "keep" then
+            if #me.hand > MAX_HAND then return false end
+            text = "You gain " .. cardName(me.hand[g.new]) .. " and keep it."
+        elseif kind == "drop" then
+            if not (i and me.hand[i]) then return false end
+            local gained = me.hand[g.new]
+            local c = table.remove(me.hand, i)
+            g.discard[#g.discard + 1] = c
+            text = i == g.new and ("You gain " .. cardName(c) .. " and drop it.")
+                or ("You gain " .. cardName(gained) .. " and drop " .. cardName(c) .. ".")
+            g.new = nil
+            for j, card in ipairs(me.hand) do if card == gained then g.new = j end end
+        else
+            return false
+        end
+        return Sabacc.endTurn(g, text)
+    end
+    if g.phase ~= "act" then return false end
     if kind == "gain" then
-        if #me.hand >= MAX_HAND then return false end
+        -- draw from the deck; then keep it or drop a card (see the "drop" phase)
         local c = draw(g)
         me.hand[#me.hand + 1] = c
         g.new = #me.hand
-        text = "You gain " .. cardName(c) .. "."
+        g.phase = "drop"
+        g.msg = "You draw " .. cardName(c) .. ". Keep it, or tap a card to drop."
+            .. (#me.hand > MAX_HAND and " Your hand is full, so you must drop one." or "")
+        return true
     elseif kind == "swap" then
         if not (i and me.hand[i] and #g.discard > 0) then return false end
         local c = table.remove(g.discard)
         g.discard[#g.discard + 1] = me.hand[i]
         me.hand[i] = c
         g.new = i
-        text = "You swap for " .. cardName(c) .. "."
+        text = "You take " .. cardName(c) .. " from the discard pile."
     elseif kind == "discard" then
         if not (i and me.hand[i] and #me.hand > 1) then return false end
         local c = table.remove(me.hand, i)
@@ -355,7 +392,12 @@ function Sabacc.act(g, kind, i)
     else
         return false
     end
-    me.last = text
+    return Sabacc.endTurn(g, text)
+end
+
+--- Your move is done: the computer players move, then betting starts.
+function Sabacc.endTurn(g, text)
+    you(g).last = text
     for _, p in ipairs(activeAIs(g)) do aiAct(g, p) end
     g.phase = "bet"
     g.msg = text .. " Now bet: check, bet " .. RAISE .. ", or junk your hand."
@@ -748,7 +790,6 @@ function Screen:setup()
     self.face_msg = UI.fitFace({ "Everyone checks. Spike dice: 2 and 3." }, W * 0.8, self.msg_h * 0.3)
     self.face_foot = UI.fitFace({ "BANTHAS WILD" }, W * 0.32, self.foot_h * 0.42, monob)
     self.face_foot_small = UI.fitFace({ "TAP A CARD", "CREDITS 999" }, W * 0.26, self.foot_h * 0.36, mono)
-    self.face_btn = UI.fitFace({ "DISCARD", "CALL 10", "NEXT HAND" }, (W - 2 * self.pad) / 4 * 0.8, self.btn_h * 0.32, monob)
     self.faces_card = { num = UI.fitFace({ "+10", "−10" }, cw * 0.5, ch * 0.11 * 0.82, { font = MONO, bold = true }) }
     self.faces_pile = { num = UI.fitFace({ "+10", "−10" }, self.pile_w * 0.5, self.pile_h * 0.11 * 0.82, { font = MONO, bold = true }) }
     self.faces_mini = { num = UI.fitFace({ "+10", "−10" }, self.mini_w * 0.52, self.mini_h * 0.17 * 0.85, { font = MONO, bold = true }) }
@@ -951,8 +992,8 @@ function Screen:drawFooter(bb, x, y)
     local ny, nh = y + math.floor(h * 0.14), math.floor(h * 0.72)
     fillPoly(bb, cutPts(nx, ny, nw, nh, math.floor(nh * 0.35)), UI.BLACK)
     UI.drawText(bb, self.face_foot, name, nx, ny, nw, nh, UI.WHITE, true)
-    if g.phase == "act" then
-        local hint = self.app.sel and "CARD PICKED" or "TAP A CARD"
+    if g.phase == "act" or g.phase == "drop" then
+        local hint = self.app.sel and "CARD PICKED" or (g.phase == "drop" and "TAP TO DROP" or "TAP A CARD")
         local tw = UI.measure(self.face_foot_small, hint)
         UI.drawTextLeft(bb, self.face_foot_small, hint, x + W - pad - tw, y, h, UI.DARK)
     end
@@ -976,7 +1017,8 @@ function Screen:drawButtons(bb, x, y)
         else
             panel(bb, bx, y, bw, h, c, t, UI.BLACK, UI.WHITE)
         end
-        UI.drawText(bb, self.face_btn, b.text:upper(), bx, y, bw, h,
+        local f = UI.fitFace({ b.text:upper() }, bw * 0.84, h * 0.34, { font = MONO, bold = true })
+        UI.drawText(bb, f, b.text:upper(), bx, y, bw, h,
             not enabled and UI.LIGHT or (b.primary and UI.WHITE or UI.BLACK), true)
         if enabled then
             self.hits[#self.hits + 1] = { x = bx - self.x0, y = y - self.y0, w = bw, h = h, button = b }
@@ -1023,8 +1065,8 @@ local HELP = [[Get your hand to exactly zero.
 The deck has +1 to +10 and -1 to -10 in three suits, plus two sylops worth 0. Each card shows its number in the top band and one dot per point in the bottom band. Cards 1 to 6 show that many suit symbols (circles, triangles or squares); 7 to 10 are solid face cards with an ornate design. Positive cards are black, negative cards dark gray. The sylop is a black card with a ringed hexagon.
 
 Each hand has three rounds. In a round you can:
-• Gain: draw a card (up to 5)
-• Swap: tap one of your cards, then take the face-up discard for it
+• Gain: draw from the deck, then keep it or drop any one card (the new one too). A full hand of 5 must drop one.
+• Take discard: tap one of your cards, then take the face-up discard in its place
 • Discard: tap a card and drop it
 • Stand: keep your hand
 
@@ -1057,7 +1099,7 @@ function App:save()
 end
 
 function App:pick(i)
-    if self.game.phase ~= "act" then return end
+    if self.game.phase ~= "act" and self.game.phase ~= "drop" then return end
     self.sel = self.sel ~= i and i or nil
     self:refresh()
 end
@@ -1087,10 +1129,15 @@ function App:buttonRow()
     local g, me = self.game, self.game.players[1]
     if g.phase == "act" then
         return {
-            { text = "Gain", enabled = #me.hand < MAX_HAND, callback = function() self:doAct("gain") end },
-            { text = "Swap", enabled = self.sel ~= nil and #g.discard > 0, callback = function() self:doAct("swap") end },
+            { text = "Gain", callback = function() self:doAct("gain") end },
+            { text = "Take discard", enabled = self.sel ~= nil and #g.discard > 0, callback = function() self:doAct("swap") end },
             { text = "Discard", enabled = self.sel ~= nil and #me.hand > 1, callback = function() self:doAct("discard") end },
             { text = "Stand", primary = true, callback = function() self:doAct("stand") end },
+        }
+    elseif g.phase == "drop" then
+        return {
+            { text = "Keep", primary = true, enabled = #me.hand <= MAX_HAND, callback = function() self:doAct("keep") end },
+            { text = "Drop", enabled = self.sel ~= nil, callback = function() self:doAct("drop") end },
         }
     elseif g.phase == "bet" then
         return {
