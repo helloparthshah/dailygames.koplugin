@@ -12,6 +12,7 @@ local Menu = require("ui/widget/menu")
 local UIManager = require("ui/uimanager")
 local VerticalGroup = require("ui/widget/verticalgroup")
 
+local Amuse = require("dailygames/amuse")
 local NYT = require("dailygames/nyt")
 local Store = require("dailygames/store")
 local UI = require("dailygames/ui")
@@ -141,8 +142,10 @@ function Crossword:setup()
     if self:isSolved() then self.status = "Solved!" end
 end
 
+local TITLES = { mini = "The Mini", daily = "Daily Crossword", atlantic = "The Atlantic" }
+
 function Crossword:getTitle()
-    return (self.kind == "mini" and "The Mini" or "Daily Crossword") .. " · " .. self.date
+    return (TITLES[self.kind] or "Crossword") .. " · " .. self.date
 end
 
 function Crossword:save(defer)
@@ -408,8 +411,12 @@ function Crossword:buildBody(width, height)
     return top, bottom
 end
 
+--- kind: "mini" / "daily" (NYT) or "atlantic" (Amuse Labs).
 function Crossword.launch(kind, cookie)
-    local data, err = UI.withBusy("Loading crossword…", function() return NYT.crossword(kind, cookie) end)
+    local data, err = UI.withBusy("Loading crossword…", function()
+        if kind == "atlantic" then return Amuse.latest("atlantic", "atlantic") end
+        return NYT.crossword(kind, cookie)
+    end)
     if not data then
         local hint = kind == "daily"
             and "\n\nIf this keeps failing, the daily puzzle may need an NYT subscription: set your NYT-S cookie in Tools > Daily Games."

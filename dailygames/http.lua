@@ -15,12 +15,13 @@ local Http = {
 }
 
 --- Performs a request.
--- opts: url, method ("GET"), headers (table), body (table, sent as JSON), timeout (seconds)
+-- opts: url, method ("GET"), headers (table), body (table, sent as JSON), timeout (seconds),
+--       raw (return the body text instead of decoded JSON)
 -- Returns decoded JSON (or nil), HTTP status code (nil on network failure), error message.
 function Http.request(opts)
     local sink = {}
     local headers = {
-        ["Accept"] = "application/json",
+        ["Accept"] = opts.raw and "*/*" or "application/json",
         ["User-Agent"] = Http.user_agent,
     }
     for k, v in pairs(opts.headers or {}) do
@@ -60,6 +61,9 @@ function Http.request(opts)
 
     local data
     local raw = table.concat(sink)
+    if opts.raw then
+        return raw, code -- caller wants the body as text (e.g. HTML)
+    end
     if raw ~= "" then
         local decoded_ok, decoded = pcall(JSON.decode, raw)
         if decoded_ok and type(decoded) == "table" then

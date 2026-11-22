@@ -157,6 +157,13 @@ local STEPS = {
     function() shot("daily_crossword") end,
     function() closeAllGames() end,
 
+    -- The Atlantic crossword
+    function() mod("crossword").launch("atlantic") end,
+    function() shot("atlantic_start") end,
+    function() local app = top(); for _, k in ipairs { "P", "I" } do app:onKey(k) end end,
+    function() shot("atlantic_typed") end,
+    function() closeAllGames() end,
+
     -- Costcodle: one high guess, then a close one
     function() mod("costcodle").launch(today) end,
     function() shot("costcodle_start") end,
