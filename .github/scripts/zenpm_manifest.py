@@ -18,6 +18,12 @@ BASE = f"{RAW}/zenpm/"
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "zenpm")
 
 
+
+DESCRIPTION = ("Daily puzzles designed for e-ink: NYT Wordle, Connections, Strands, Mini and Daily Crossword, "
+               "The Atlantic crossword, Krillion, FoodGuessr (plus Cuisine Match and Plate-Off), Costcodle, "
+               "WhereTaken, More/Less, Marveldle and Brandle, with endless modes. "
+               "Adds itself to the ZenOS App Launcher.")
+
 def github(path):
     req = urllib.request.Request(f"https://api.github.com/repos/{REPO}{path}",
                                  headers={"Accept": "application/vnd.github+json"})
@@ -51,13 +57,12 @@ def main():
         "id": "dailygames",
         "name": "Daily Games",
         "version": latest["tag_name"].lstrip("v"),
-        "description": "Daily puzzle games: NYT Wordle, Connections, Strands, Mini and Daily Crossword, "
-                       "plus Krillion trivia. Adds itself to the ZenOS App Launcher.",
+        "description": DESCRIPTION,
         "author": OWNER,
         "category": "games",
         "platforms": ["koreader"],
         "dependencies": [],
-        "size": latest["assets"][0]["size"],
+        "size": str(latest["assets"][0]["size"]),  # manifest sizes are strings (versions.json uses numbers)
         "source": f"https://github.com/{REPO}",
         "source_asset": ASSET,
         "source_type": "release",
