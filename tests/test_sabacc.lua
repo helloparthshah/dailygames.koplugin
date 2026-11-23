@@ -82,6 +82,36 @@ do
     assert(me.hand[#me.hand] == top_card, "took the top card of the deck")
 end
 
+-- opponents: three different regulars per table, picked at random
+do
+    local pool, seen = {}, {}
+    for _, r in ipairs(Sabacc.ROSTER) do pool[r.name] = true end
+    assert(#Sabacc.ROSTER >= 6)
+    for _ = 1, 60 do
+        local t = Sabacc.newTable()
+        local names = {}
+        for i = 2, 4 do
+            local n = t.players[i].name
+            assert(pool[n] and not names[n], "a regular, seated once")
+            names[n], seen[n] = true, true
+        end
+    end
+    local distinct = 0
+    for _ in pairs(seen) do distinct = distinct + 1 end
+    assert(distinct >= 8, "tables vary: " .. distinct)
+    -- a player out of credits leaves; a newcomer takes the seat
+    local t = Sabacc.newTable()
+    local gone = t.players[3].name
+    t.players[3].credits = 5
+    t.phase = "done"
+    Sabacc.newHand(t)
+    local new = t.players[3]
+    assert(new.name ~= gone and new.ai and pool[new.name], "replaced by a regular")
+    for i = 2, 4 do if i ~= 3 then assert(t.players[i].name ~= new.name, "not already seated") end end
+    assert(new.credits <= Sabacc.START - 30 and new.credits >= Sabacc.START - 50, "newcomer brings fresh credits")
+    assert((t.msg or ""):find(gone .. " leaves the table") or t.phase ~= "trade", "announced")
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot

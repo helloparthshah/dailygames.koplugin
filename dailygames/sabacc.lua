@@ -48,12 +48,22 @@ local SAVE_KEY = "sabacc/orsl"
 Sabacc.POT_ANTE, Sabacc.SABACC_ANTE, Sabacc.BUY_DECK, Sabacc.BUY_DISCARD = POT_ANTE, SABACC_ANTE, BUY_DECK, BUY_DISCARD
 Sabacc.JUNK_PENALTY, Sabacc.RAISES, Sabacc.ROUNDS, Sabacc.START = JUNK_PENALTY, RAISES, ROUNDS, START
 
--- bold: how readily a player raises
+-- The regulars: each new table seats three of them at random, and a player
+-- who runs out of credits leaves and a newcomer takes the seat.
+-- bold: how readily a player raises (cautious 0.25 .. reckless 0.8)
 local ROSTER = {
     { name = "Tal Merrow", title = "Smuggler", bold = 0.65 },
     { name = "K-7 Unit", title = "Droid", bold = 0.35 },
     { name = "Old Jessa", title = "Cantina owner", bold = 0.5 },
+    { name = "Varro Quill", title = "Bounty hunter", bold = 0.8 },
+    { name = "Nessa Dray", title = "Freighter pilot", bold = 0.55 },
+    { name = "Brakk", title = "Mercenary", bold = 0.75 },
+    { name = "Ilsa Venn", title = "Card shark", bold = 0.6 },
+    { name = "B3-L Unit", title = "Croupier droid", bold = 0.3 },
+    { name = "Doran Pike", title = "Moisture farmer", bold = 0.25 },
+    { name = "Mira Sol", title = "Senator's aide", bold = 0.45 },
 }
+Sabacc.ROSTER = ROSTER
 
 -- cards ------------------------------------------------------------------------
 
@@ -226,13 +236,25 @@ function Sabacc.owe(g, p)
     return (g.bet or 0) - (p.paid or 0)
 end
 
---- A new table; `credits` (optional) is a list of starting credits per seat.
+--- A random regular who isn't already at the table.
+local function newcomer(g)
+    local seated, free = {}, {}
+    for _, p in ipairs(g.players) do seated[p.name] = true end
+    for _, r in ipairs(ROSTER) do
+        if not seated[r.name] then free[#free + 1] = r end
+    end
+    local r = free[math.random(#free)]
+    return { name = r.name, title = r.title, bold = r.bold, ai = true, credits = START }
+end
+
+--- A new table with three regulars picked at random; `credits` (optional) is
+-- a list of starting credits per seat.
 function Sabacc.newTable(credits)
     local g = { players = { { name = "You", credits = credits and credits[1] or START } },
         hand_no = 0, sabacc_pot = 0, dealer = SEATS }
-    for i, r in ipairs(ROSTER) do
-        g.players[i + 1] = { name = r.name, title = r.title, bold = r.bold, ai = true,
-            credits = credits and credits[i + 1] or START }
+    for i = 2, SEATS do
+        g.players[i] = newcomer(g)
+        if credits then g.players[i].credits = credits[i] end
     end
     Sabacc.newHand(g, true)
     return g
@@ -247,12 +269,16 @@ function Sabacc.newHand(g, first)
     g.deck, g.discard, g.junk = Sabacc.newDeck(), {}, {}
     g.pot, g.round, g.dice, g.winners, g.new, g.log = 0, 1, nil, nil, nil, {}
     g.phase = "busy" -- the engine is running; "trade" / "bet" mean it's your move
-    for _, p in ipairs(g.players) do
-        p.out, p.hand, p.last, p.paid, p.acted = false, {}, "", 0, false
+    local arrivals = {}
+    for i, p in ipairs(g.players) do
+        local fresh = false
         if p.ai and p.credits < POT_ANTE + SABACC_ANTE + 40 then
-            p.credits = START
-            p.last = "Bought back in."
+            -- out of credits: they leave, and a newcomer takes the seat
+            local q = newcomer(g)
+            arrivals[#arrivals + 1] = string.format("%s leaves the table; %s sits down.", p.name, q.name)
+            g.players[i], p, fresh = q, q, true
         end
+        p.out, p.hand, p.last, p.paid, p.acted = false, {}, fresh and "Just sat down." or "", 0, false
     end
     if you(g).credits < POT_ANTE + SABACC_ANTE then
         g.phase = "broke"
@@ -270,6 +296,7 @@ function Sabacc.newHand(g, first)
     g.log = {}
     g.log[1] = string.format("Hand %d. %s. Everyone antes %d to the Pot and %d to the Sabacc Pot.",
         g.hand_no, dealer, POT_ANTE, SABACC_ANTE)
+    for _, t in ipairs(arrivals) do g.log[#g.log + 1] = t end
     startTrading(g)
     return g
 end
@@ -928,7 +955,7 @@ function Screen:setup()
     local monob = { font = MONO, bold = true }
     self.face_title = UI.fitFace({ "S A B A C C" }, W * 0.4, self.head_h * 0.42, monob)
     self.face_info = UI.fitFace({ "HAND 999  //  CORELLIAN SPIKE" }, W * 0.6, self.info_h * 0.5, mono)
-    self.face_name = UI.fitFace({ "TAL MERROW", "OLD JESSA" }, inner, self.opp_h * 0.1, monob)
+    self.face_name = UI.fitFace({ "VARRO QUILL", "TAL MERROW", "DORAN PIKE" }, inner * 0.72, self.opp_h * 0.1, monob)
     self.face_small = UI.fitFace({ "DISCARDED A SYLOP", "CANTINA OWNER" }, inner, self.opp_h * 0.075, mono)
     self.face_label = UI.fitFace({ "SPIKE DICE", "DISCARD" }, self.pile_w * 1.5, self.tab_h * 0.075, mono)
     self.face_msg = UI.fitFace({ "Everyone checks. Spike dice: 2 and 3." }, W * 0.8, self.msg_h * 0.3)
@@ -1000,17 +1027,17 @@ function Screen:drawOpponent(bb, p, seat, bx, by, bw, bh)
     local sh = math.floor(bh * 0.2)
     fillPoly(bb, cutPts(bx, by, bw, sh, c), p.out and UI.LIGHT or UI.BLACK)
     UI.drawTextLeft(bb, self.face_name, p.name:upper(), bx + c + math.floor(u * 0.6), by, sh, UI.WHITE, true)
-    if g.dealer == seat then self:dealerTag(bb, bx + bw - pad, by, sh) end
     if win then
         -- winner: whole panel inverted, with a rule under the name and a star
         bb:paintRect(bx + c, by + sh - math.max(2, math.floor(u * 0.3)), bw - 2 * c, math.max(2, math.floor(u * 0.3)), UI.WHITE)
         local sw = UI.measure(self.face_name, "★")
-        UI.drawTextLeft(bb, self.face_name, "★", bx + bw - pad - sw - (g.dealer == seat and math.floor(5 * u) or 0), by, sh, UI.WHITE, true)
+        UI.drawTextLeft(bb, self.face_name, "★", bx + bw - pad - sw, by, sh, UI.WHITE, true)
     end
     local ix = bx + pad
     local ly = by + sh + math.floor(bh * 0.04)
     local lh = math.floor(bh * 0.12)
     UI.drawTextLeft(bb, self.face_small, p.credits .. " CR", ix, ly, lh, fg, true)
+    if g.dealer == seat then self:dealerTag(bb, bx + bw - pad, ly, lh, not win) end
     local cy = ly + lh + math.floor(bh * 0.03)
     local step = math.floor(self.mini_w * 1.1)
     if #p.hand > SHOWN then step = math.floor((bw - 2 * pad - self.mini_w) / (#p.hand - 1)) end
@@ -1353,7 +1380,7 @@ end
 
 -- app ---------------------------------------------------------------------------------
 
-local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
+local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players picked at random from ten regulars (smugglers, droids, a bounty hunter and more). When one runs out of credits they leave and someone new sits down. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
 
 GOAL
 Have the best hand at the end of 3 rounds, as close to zero as possible. ☰ > Winning hands shows every hand in order of strength, with examples.
@@ -1422,7 +1449,7 @@ CONTROLS
 HOUSE CHOICES
 Where the rules leave something open, this game does the following:
 • Raises are 10 or 20 at a time, and there are at most 3 raises in a betting phase, so hands keep moving.
-• Everyone starts with 300 credits. A computer player who runs low buys back in with 300. If you can't cover the ante, start a new table from this menu.
+• Everyone starts with 300 credits. A computer player who runs low leaves the table, and a random regular sits down with 300. If you can't cover the ante, start a new table from this menu.
 • The ORSL hand list is used, so Fleet, Prime Sabacc, Idiot's Array and similar hands from other tables count only as the plain hands they also are.
 
 SOURCE
@@ -1442,7 +1469,7 @@ end
 function App:setup()
     if not self.game then
         local saved = Store.get(SAVE_KEY)
-        if type(saved) == "table" and type(saved.players) == "table" and #saved.players == #ROSTER + 1
+        if type(saved) == "table" and type(saved.players) == "table" and #saved.players == SEATS
                 and saved.sabacc_pot then
             self.game = saved
         else
