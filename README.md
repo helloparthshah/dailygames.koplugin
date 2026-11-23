@@ -65,7 +65,7 @@ On e-ink, colours become shades: black means right, gray means partly right, and
 
 ![Sabacc on a Kindle: the table, a showdown and the winning hands chart](docs/sabacc.jpg)
 
-A built-in Corellian Spike table against three computer players: Tal Merrow (a smuggler), K-7 Unit (a droid) and Old Jessa (a cantina owner). It needs no Wi-Fi and isn't a daily puzzle, so play as many hands as you like. Credits, the Sabacc Pot and the hand in progress are saved.
+A built-in Corellian Spike table against three computer players, picked at random from ten regulars: smugglers, droids, a bounty hunter, a card shark and more. When one runs out of credits, someone new sits down. It needs no Wi-Fi and isn't a daily puzzle, so play as many hands as you like. Credits, the Sabacc Pot and the hand in progress are saved.
 
 It follows the Outer Rim Sabacc League rules:
 
