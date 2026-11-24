@@ -246,6 +246,8 @@ function App:guess(char)
     end
     table.insert(self.state.guesses, { id = char.id, sim = sim })
     self.input = ""
+    -- grab newly unlocked clues now: once solved, the server stops serving them
+    if not (sim.isExact or sim.id == "Exact") then self:collectClues() end
     if sim.isExact or sim.id == "Exact" then
         self.state.won = true
         self.status = string.format("You got it in %d! It's %s.", #self.state.guesses, char.name)
@@ -254,7 +256,7 @@ function App:guess(char)
         for _, col in ipairs(COLUMNS) do if sim[col.key] ~= "Exact" then all = false end end
         self.status = all and "All correct, but it's not this character!" or ""
     end
-    Store.saveProgress("marveldle", self.date, self:markDone())
+    Store.saveProgress(self:storeKey(), self.date, self:markDone())
     self:refresh()
 end
 
@@ -268,16 +270,46 @@ function App:showGuess(g)
     UIManager:show(InfoMessage:new { text = table.concat(lines, "\n") })
 end
 
+--- Fetches clue n (HTML snippet) as plain text, or nil if it's still locked.
+function App:fetchClue(n)
+    local body, code = self:api(string.format("/characters/audiovisual/clue/%d?dateId=%s&language=en",
+        n, urlencode(self.date_id)), true)
+    local text = code == 200 and stripHtml(body) or nil
+    if text and text ~= "" then return text end
+end
+
+--- Saves the text of every clue unlocked so far. The server only hands out a
+-- clue while the game is in progress, so they're kept for after it's solved.
+function App:collectClues()
+    self.state.clues = self.state.clues or {}
+    local n, got = #self.state.guesses, false
+    for _, c in ipairs(CLUES) do
+        local key = tostring(c.n)
+        if n >= c.after and not self.state.clues[key] then
+            self.state.clues[key] = self:fetchClue(c.n)
+            got = got or self.state.clues[key] ~= nil
+        end
+    end
+    return got
+end
+
 function App:showClues()
     local n = #self.state.guesses
+    if self:collectClues() then Store.saveProgress(self:storeKey(), self.date, self:markDone()) end
     local lines = {}
+    if self.state.won then
+        local last = self.state.guesses[#self.state.guesses]
+        local char = last and self.by_id[last.id]
+        table.insert(lines, string.format("Solved in %d: %s", n, char and char.name or "?"))
+    end
     for _, c in ipairs(CLUES) do
-        if n >= c.after or self.state.won then
-            -- clues come back as a small HTML snippet
-            local body, code = self:api(string.format("/characters/audiovisual/clue/%d?dateId=%s&language=en",
-                c.n, urlencode(self.date_id)), true)
-            local text = code == 200 and stripHtml(body) or nil
-            table.insert(lines, c.label .. ": " .. ((text and text ~= "") and text or "(unavailable)"))
+        local text = self.state.clues and self.state.clues[tostring(c.n)]
+        if text then
+            table.insert(lines, c.label .. ": " .. text)
+        elseif n >= c.after then
+            table.insert(lines, c.label .. ": (couldn't load)")
+        elseif self.state.won then
+            table.insert(lines, string.format("%s: not needed (unlocks after %d guesses)", c.label, c.after))
         else
             table.insert(lines, string.format("%s: unlocks after %d guesses", c.label, c.after))
         end

@@ -224,13 +224,17 @@ function App:buildBody(width, height)
     local verdict = results[self.state.round]
     local left_stat = (self.state.round > 1 or self.state.revealed) and self:statFor(self.state.round)
     local right_stat = self.state.revealed and self:statFor(self.state.round + 1)
+    -- after a pick, mark the card that was chosen (older saves didn't record it)
+    local mark = self.state.revealed and (verdict and "✓ " or "✗ ") or nil
+    local picked = self.state.picked or "right"
     local top = VerticalGroup:new {
         align = "center",
         header, UI.span(6),
-        self:pickable(card(self, left, w, card_h, left_stat and MoreLess.formatStat(self.state.cat, left_stat)), "left"),
+        self:pickable(card(self, left, w, card_h, left_stat and MoreLess.formatStat(self.state.cat, left_stat),
+            picked == "left" and mark or nil), "left"),
         UI.text("— or —", w, { face = "smallinfofont" }),
         self:pickable(card(self, right, w, card_h, right_stat and MoreLess.formatStat(self.state.cat, right_stat),
-            self.state.revealed and (verdict and "✓ " or "✗ ") or nil), "right"),
+            picked == "right" and mark or nil), "right"),
     }
     return top, bottom
 end
@@ -264,12 +268,14 @@ function App:pick(direction)
     self.state.results[key] = self.state.results[key] or {}
     self.state.results[key][self.state.round] = res.correct and true or false
     self.state.revealed = true
+    self.state.picked = direction
     self:save()
     self:setStatus(res.correct and "Correct!" or "Not quite.")
 end
 
 function App:advance()
     self.state.revealed = false
+    self.state.picked = nil
     if self.state.round >= ROUNDS then
         self.state.cat = self.state.cat + 1
         self.state.round = 1

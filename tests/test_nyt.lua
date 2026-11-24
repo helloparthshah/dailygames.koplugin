@@ -337,7 +337,13 @@ local function findTappables(w, out) out = out or {} if type(w) ~= "table" then 
 local cardsT = findTappables(app); assert(#cardsT == 2, "two tappable cards: " .. #cardsT)
 cardsT[1]:onTap(); assert(app.state.revealed and app.state.results["0"][1] == true and app:statFor(2) == "100")
 assert(#findTappables(app) == 0, "cards stop being tappable after the reveal")
+-- the mark goes on the card that was picked (here the top one)
+local function texts(w, out) out = out or {} if type(w) ~= "table" then return out end if w.text then out[#out + 1] = w.text end for _, c in ipairs(w) do texts(c, out) end return out end
+local function marked() local m = {} for _, t in ipairs(texts(app)) do if t:find("^✓ ") or t:find("^✗ ") then m[#m + 1] = t end end return m end
+local m = marked(); assert(#m == 1 and m[1] == "✓ 200", table.concat(m, "|") .. " // " .. table.concat(texts(app), " | "))
 app:advance(); assert(app.state.round == 2 and app:items().title == "C0R2")
+app:pick("right"); m = marked(); assert(#m == 1 and m[1] == "✗ 100", "mark on the bottom card when it was picked: " .. table.concat(m, "|"))
+app.state.revealed, app.state.picked = false, nil; app.state.results["0"][2] = nil; guesses = guesses - 1
 for c = 0, 4 do for r = (c == 0 and 2 or 1), 5 do app:pick(r % 2 == 0 and "right" or "left"); app:advance() end end
 assert(app:isOver() and guesses == 25, "all rounds played: " .. guesses)
 print("moreless score:", app:score())
@@ -381,6 +387,10 @@ ROUTES[A .. "/characters/audiovisual/clue/1?dateId=11%2F22%2F2026%2012%3A00%3A00
 app:showClues(); assert(top().text:find('Quote: "Brother!"', 1, true), top().text); UIManager_close_top = top()
 for i = 1, 4 do table.remove(app.state.guesses) end
 app:guess(chars[1]); assert(app.state.won and app.status:find("Thor"), app.status)
+-- after solving, the server refuses clues; unlocked ones were saved during play
+ROUTES[A .. "/characters/audiovisual/clue/1?dateId=11%2F22%2F2026%2012%3A00%3A00%20AM&language=en"] = function() return "", 403 end
+app:showClues(); local ct = top().text
+assert(ct:find("Solved in 2: Thor", 1, true) and ct:find('Quote: "Brother!"', 1, true) and ct:find("Appearances: not needed", 1, true), ct)
 app:onClose()
 plug:onDailyGamesMarveldle(); assert(top().state.won, "progress restored"); top():onClose()
 -- WHERETAKEN
