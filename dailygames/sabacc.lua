@@ -301,6 +301,7 @@ function Sabacc.newHand(g, first)
             g.players[i], p, fresh = q, q, true
         end
         p.out, p.hand, p.last, p.paid, p.acted = false, {}, fresh and "Just sat down." or "", 0, false
+        p.invested, p.allin = 0, false
     end
     if you(g).credits < POT_ANTE + SABACC_ANTE then
         g.phase = "broke"
@@ -455,8 +456,19 @@ end
 local function pay(g, p, amount)
     p.credits = p.credits - amount
     p.paid = p.paid + amount
+    p.invested = (p.invested or 0) + amount -- this hand's bets (for side pots)
     g.pot = g.pot + amount
+    if g.stakes and p.credits == 0 then p.allin = true end
 end
+
+--- Table stakes (house rule): can anyone else still in respond to a bet?
+local function othersCanBet(g, p)
+    for _, q in ipairs(g.players) do
+        if q ~= p and not q.out and not q.allin then return true end
+    end
+    return false
+end
+Sabacc.othersCanBet = othersCanBet
 
 local function junk(g, p)
     p.out = true
@@ -476,7 +488,15 @@ local function applyBet(g, p, kind, amount)
         p.acted = true
         return "checked"
     elseif kind == "call" then
-        if owe <= 0 or p.credits < owe then return end
+        if owe <= 0 then return end
+        if p.credits < owe then
+            -- table stakes: call with everything you have
+            if not g.stakes or p.credits <= 0 then return end
+            local all = p.credits
+            pay(g, p, all)
+            p.allin, p.acted = true, true
+            return "went all in with " .. all
+        end
         pay(g, p, owe)
         p.acted = true
         return "called " .. owe
@@ -664,6 +684,7 @@ local function aiBet(g, p)
     end
     local fair = 1 / (others + 1) -- an even share of the pot
     local keen = 0.5 ^ g.raises -- each raise this phase halves the urge to raise again
+    if g.stakes and not othersCanBet(g, p) then keen = 0 end -- nobody could call a raise
     local function size(frac)
         local amt = math.max(10, math.floor(pot * frac / 10 + 0.5) * 10)
         -- mind the stake: only a near-certain hand risks most of its credits
@@ -681,6 +702,7 @@ local function aiBet(g, p)
         end
         text = text or applyBet(g, p, "check")
     else
+        if p.credits < owe and g.stakes then owe = p.credits end -- all in at most
         local need = owe / (pot + owe) -- pot odds
         -- a big raise says the raiser is probably strong: discount equity by
         -- the raise's size against the pot, less so against a frequent raiser
@@ -734,7 +756,105 @@ local function award(g, w, how)
     g.phase = "done"
 end
 
+--- Players still in, best hand first; exact ties settled by a blind card draw.
+local function ranked(g)
+    local list = {}
+    for _, p in ipairs(active(g)) do list[#list + 1] = { p = p, e = Sabacc.evaluate(p.hand) } end
+    table.sort(list, function(a, b) return Sabacc.compare(a.e, b.e) < 0 end)
+    local out, i, drew = {}, 1, false
+    while i <= #list do
+        local j = i
+        while j < #list and Sabacc.compare(list[j + 1].e, list[i].e) == 0 do j = j + 1 end
+        if j > i then -- a tie: each draws a card, highest first
+            drew = true
+            for k = i, j do
+                local c = draw(g)
+                g.discard[#g.discard + 1] = c
+                list[k].draw = c.v + math.random() * 0.01
+            end
+            local group = {}
+            for k = i, j do group[#group + 1] = list[k] end
+            table.sort(group, function(a, b) return a.draw > b.draw end)
+            for _, x in ipairs(group) do out[#out + 1] = x end
+        else
+            out[#out + 1] = list[i]
+        end
+        i = j + 1
+    end
+    return out, drew
+end
+
+--- Table stakes: a main pot everyone still in can win, and side pots for the
+--- bets an all-in player couldn't match. Money nobody matched goes back.
+local function settleStakes(g)
+    local order, drew = ranked(g)
+    local levels, seen = {}, {}
+    for _, x in ipairs(order) do
+        local v = x.p.invested or 0
+        if not seen[v] then seen[v] = true; levels[#levels + 1] = v end
+    end
+    table.sort(levels)
+    local invested = 0
+    for _, p in ipairs(g.players) do invested = invested + (p.invested or 0) end
+    local dead = g.pot - invested -- antes, buys and junk penalties: in the main pot
+    local prev, won, refunds, lines = 0, {}, {}, {}
+    for li, t in ipairs(levels) do
+        local cap = li == #levels and math.huge or t -- bets above every level join the top pot
+        local amt = li == 1 and dead or 0
+        for _, p in ipairs(g.players) do
+            amt = amt + math.max(0, math.min(p.invested or 0, cap) - prev)
+        end
+        local eligible, winner = 0, nil
+        for _, x in ipairs(order) do
+            if (x.p.invested or 0) >= t then
+                eligible = eligible + 1
+                winner = winner or x
+            end
+        end
+        if amt > 0 and winner then
+            local who = winner.p.ai and winner.p.name or "You"
+            if eligible == 1 and li > 1 then
+                refunds[winner.p] = (refunds[winner.p] or 0) + amt
+                lines[#lines + 1] = string.format("%d nobody could match goes back to %s.", amt,
+                    winner.p.ai and winner.p.name or "you")
+            else
+                won[winner.p] = (won[winner.p] or 0) + amt
+                lines[#lines + 1] = string.format("%s %s the %s of %d with %s.", who, winner.p.ai and "wins" or "win",
+                    li == 1 and "main pot" or "side pot", amt, winner.e.name)
+            end
+        end
+        prev = t
+    end
+    g.winners = {}
+    for i, p in ipairs(g.players) do
+        p.credits = p.credits + (won[p] or 0) + (refunds[p] or 0)
+        if won[p] then g.winners[#g.winners + 1] = i end
+    end
+    g.pot = 0
+    -- the Sabacc Pot goes with the main pot, to a hand of exactly zero
+    local main = order[1]
+    if main.e.zero and g.sabacc_pot > 0 then
+        main.p.credits = main.p.credits + g.sabacc_pot
+        lines[#lines + 1] = string.format("%s %s the Sabacc Pot of %d.", main.p.ai and main.p.name or "You",
+            main.p.ai and "takes" or "take", g.sabacc_pot)
+        g.sabacc_pot = 0
+    end
+    local before = #g.log > 0 and (table.concat(g.log, " ") .. " ") or ""
+    g.log = {}
+    if g.shift_quote then before = before .. g.shift_quote .. " "; g.shift_quote = nil end
+    g.msg = before .. (drew and "Showdown, with a blind card draw: " or "Showdown: ") .. table.concat(lines, " ")
+    local line = say(g, main.p, "win", 1)
+    g.quote = line and string.format('%s: "%s"', main.p.name, line) or nil
+    g.phase = "done"
+end
+
 local function showdown(g)
+    if g.stakes then
+        -- side pots only matter when someone went all in
+        for _, p in ipairs(active(g)) do
+            if p.allin then return settleStakes(g) end
+        end
+    end
     local best, tied = nil, {}
     for _, p in ipairs(active(g)) do
         local e = Sabacc.evaluate(p.hand)
@@ -811,7 +931,11 @@ end
 local function startBetting(g)
     g.stage = "bet"
     g.bet, g.raises = 0, 0
-    for _, p in ipairs(g.players) do p.paid, p.acted = 0, false end
+    for _, p in ipairs(g.players) do
+        p.paid, p.acted = 0, false
+        -- table stakes: out of credits (spent on buys) means all in, not out
+        if g.stakes and not p.out and p.credits == 0 then p.allin = true end
+    end
     g.cur = nextSeat(g.dealer)
     advance(g)
 end
@@ -876,18 +1000,22 @@ function advance(g)
         else
             local done = true
             for _, q in ipairs(active(g)) do
-                if not q.acted or q.paid ~= g.bet then done = false end
+                if not q.allin and (not q.acted or q.paid ~= g.bet) then done = false end
             end
             if done then return spike(g) end
             local p = g.players[g.cur]
-            if p.out or (p.acted and p.paid == g.bet) then
+            if p.out or p.allin or (p.acted and p.paid == g.bet) then
+                g.cur = nextSeat(g.cur)
+            elseif not p.ai and g.stakes and Sabacc.owe(g, p) == 0 and not othersCanBet(g, p) then
+                applyBet(g, p, "check") -- nobody left who could answer a bet
                 g.cur = nextSeat(g.cur)
             elseif not p.ai then
                 g.phase, g.quote = "bet", nil
                 local owe = Sabacc.owe(g, p)
                 g.log[#g.log + 1] = owe == 0 and string.format("Round %d betting: check, raise or junk.", g.round)
                     or string.format("The bet is %d; you owe %d.", g.bet, owe)
-                    .. (p.credits < owe and " You can't cover it, so you must junk." or "")
+                    .. (p.credits < owe and (g.stakes and (" You can call all in with your " .. p.credits .. ".")
+                        or " You can't cover it, so you must junk.") or "")
                 g.msg = table.concat(g.log, " ")
                 g.log = {}
                 return
@@ -938,6 +1066,7 @@ function Sabacc.bet(g, kind, amount)
 end
 
 Sabacc._aiBet = function(g, p) return aiBet(g, p) end -- for tests
+Sabacc._showdown = function(g) return showdown(g) end -- for tests
 
 function Sabacc.isWinner(g, seat)
     for _, i in ipairs(g.winners or {}) do
@@ -1902,6 +2031,7 @@ CONTROLS
 HOUSE CHOICES
 Where the rules leave something open, this game does the following:
 • Your raise picker moves in steps of 10. There is no limit on how many times the bet can be raised.
+• Table stakes (☰, off by default): the official rule is that a player who can't cover the bet must junk, which lets a big stack force out a small one. With table stakes on, a player short of credits can call all in instead. They can only win as much from each player as they put in; bets beyond that form a side pot for the others, and any part of a bet nobody could match goes back to the bettor.
 • Everyone starts with 300 credits. A computer player who runs low leaves the table, and a random regular sits down with 300. If you can't cover the ante, start a new table from this menu.
 • The ORSL hand list is used, so Fleet, Prime Sabacc, Idiot's Array and similar hands from other tables count only as the plain hands they also are.
 
@@ -1931,7 +2061,23 @@ function App:setup()
     end
     self.game.watch = self:watching()
     self.game.talk = self:talking()
+    self.game.stakes = self:tableStakes()
     self.sel = nil
+end
+
+--- Table stakes (house rule, off by default): all-in calls and side pots.
+function App:tableStakes()
+    return Store.get("sabacc/stakes", false) == true
+end
+
+function App:toggleStakes()
+    local on = not self:tableStakes()
+    Store.set("sabacc/stakes", on)
+    self.game.stakes = on
+    self:save()
+    self:refresh()
+    UI.notify(on and "Table stakes on: a player short of credits can call all in, with side pots."
+        or "Official rules: a player who can't cover the bet must junk.", 3)
 end
 
 --- Table talk: the regulars' lines (on by default).
@@ -2027,6 +2173,7 @@ function App:newTable()
     self.game = Sabacc.newTable()
     self.game.watch = self:watching()
     self.game.talk = self:talking()
+    self.game.stakes = self:tableStakes()
     self.sel = nil
     self:save()
     self:rebuild()
@@ -2057,10 +2204,15 @@ function App:buttonRow()
         if owe == 0 then
             row[1] = { text = "Check", primary = true, callback = function() self:doBet("check") end }
         else
-            row[1] = { text = "Call " .. owe, primary = true, enabled = me.credits >= owe,
-                callback = function() self:doBet("call") end }
+            if g.stakes and me.credits < owe then
+                row[1] = { text = "All in", sub = "call with your " .. me.credits .. " cr", primary = true,
+                    enabled = me.credits > 0, callback = function() self:doBet("call") end }
+            else
+                row[1] = { text = "Call " .. owe, primary = true, enabled = me.credits >= owe,
+                    callback = function() self:doBet("call") end }
+            end
         end
-        local can_raise = me.credits >= owe + STEP
+        local can_raise = me.credits >= owe + STEP and (not g.stakes or Sabacc.othersCanBet(g, me))
         if self.raise_by then
             -- raise picker: step the amount, then confirm
             local by = self.raise_by
@@ -2108,6 +2260,8 @@ function App:menuItems()
         { text = self:watching() and "Opponents' moves: one at a time" or "Opponents' moves: instant",
             callback = function() self:togglePace() end },
         { text = self:talking() and "Table talk: on" or "Table talk: off", callback = function() self:toggleTalk() end },
+        { text = self:tableStakes() and "Table stakes: on (house rule)" or "Table stakes: off (official)",
+            callback = function() self:toggleStakes() end },
         { text = "New table (reset credits)", callback = function() self:newTable() end },
     }
 end

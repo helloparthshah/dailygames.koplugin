@@ -257,6 +257,69 @@ do
     assert(q == 0 and w == 0, "a quiet table says nothing")
 end
 
+-- table stakes (house rule): side pots, and what nobody could match goes back
+do
+    local function table_with(hands, invested, credits, out)
+        local t = Sabacc.newTable()
+        t.stakes = true
+        t.log, t.sabacc_pot, t.pot = {}, 0, 120 -- 120 of antes and buys
+        for i, p in ipairs(t.players) do
+            p.hand, p.invested, p.credits, p.out = hands[i], invested[i], credits[i], out[i] or false
+            p.allin = credits[i] == 0 and not out[i]
+            t.pot = t.pot + invested[i]
+        end
+        return t
+    end
+    local good, bad = { { v = 3, s = 1 }, { v = -3, s = 2 } }, { { v = 9, s = 1 }, { v = 8, s = 2 } }
+    -- you raised 200 with a worse hand; Tal went all in with 30 and a better one; seat 3 junked after 20
+    local t = table_with({ bad, good, {}, bad }, { 200, 30, 20, 0 }, { 300, 0, 100, 50 }, { false, false, true, true })
+    Sabacc._showdown(t)
+    assert(t.players[2].credits == 120 + 30 + 30 + 20, "all-in player wins only the main pot: " .. t.players[2].credits)
+    assert(t.players[1].credits == 300 + 170, "the 170 nobody could match comes back to you: " .. t.players[1].credits)
+    assert(t.pot == 0 and t.msg:find("main pot") and t.msg:find("goes back to you"))
+    -- with the better hand you take the main pot and get your unmatched 170 back
+    t = table_with({ good, bad, {}, bad }, { 200, 30, 20, 0 }, { 300, 0, 100, 50 }, { false, false, true, true })
+    Sabacc._showdown(t)
+    assert(t.players[1].credits == 300 + 200 + 170 and t.players[2].credits == 0)
+    -- three players: all-in short stack wins main, a side pot goes to the best of the others
+    local mid = { { v = 2, s = 1 }, { v = -1, s = 2 } } -- Nulrhek +1
+    t = table_with({ bad, good, mid, bad }, { 100, 40, 100, 0 }, { 200, 0, 200, 50 }, { false, false, false, true })
+    Sabacc._showdown(t)
+    assert(t.players[2].credits == 120 + 40 * 3, "main pot")
+    assert(t.players[3].credits == 200 + 60 * 2, "side pot to the best of the two who matched")
+    assert(t.players[1].credits == 200, "no refund: someone matched the side bet")
+    -- random play with table stakes: credits and cards always balance, hands always end
+    local function total(g)
+        local n = g.pot + g.sabacc_pot
+        for _, p in ipairs(g.players) do n = n + p.credits end
+        return n
+    end
+    local allins = 0
+    for _ = 1, 150 do
+        local g = Sabacc.newTable()
+        g.stakes = true
+        for _, p in ipairs(g.players) do p.credits = math.random(5, 120) end
+        local start = total(g)
+        for _ = 1, 400 do
+            if g.phase == "done" or g.phase == "broke" then break end
+            if g.phase == "trade" then
+                if not Sabacc.trade(g, ({ "stand", "buy_deck", "trade_deck" })[math.random(3)], 1) then Sabacc.trade(g, "stand") end
+            elseif g.phase == "bet" then
+                if not Sabacc.bet(g, "raise", 10 * math.random(1, 8)) then
+                    if not Sabacc.bet(g, Sabacc.owe(g) > 0 and "call" or "check") then assert(Sabacc.bet(g, "junk")) end
+                end
+            end
+            for _, p in ipairs(g.players) do
+                assert(p.credits >= 0, "negative credits")
+                if p.allin then allins = allins + 1 end
+            end
+            assert(total(g) == start, "credits conserved with side pots")
+        end
+        assert(g.phase == "done" or g.phase == "broke", "hand finished")
+    end
+    assert(allins > 0, "someone went all in")
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot
@@ -400,6 +463,11 @@ do
     app:togglePace()
     assert(app.game.watch == true)
     assert(app.game.talk == true, "table talk on by default")
+    assert(app.game.stakes == false, "official rules by default")
+    app:toggleStakes()
+    assert(app.game.stakes == true and STORE["sabacc/stakes"] == true)
+    app:toggleStakes()
+    assert(app.game.stakes == false)
     app:toggleTalk()
     assert(app.game.talk == false and STORE["sabacc/talk"] == false)
     app:toggleTalk()
