@@ -303,6 +303,19 @@ local STEPS = {
     end,
     function() shot("krillion_summary") end,
     function() closeAllGames() end,
+    function()
+        local K = mod("krillion")
+        local t0 = os.time()
+        local found, err = K.findDeepest(K.today(), 7)
+        local n = 0
+        for _ in pairs(found or {}) do n = n + 1 end
+        log("krillion deepest: " .. n .. " found in " .. (os.time() - t0) .. " s " .. tostring(err or ""))
+        local e = { dayNumber = 0, score = 0, results = {} }
+        for i = 1, 7 do e.results[i] = { promptId = "p" .. i, promptText = "Prompt " .. i, answer = "", tier = "miss", score = 0 } end
+        K.showSummary(K.today(), e, nil, false)
+    end,
+    function() shot("krillion_deepest") end,
+    function() closeAllGames() end,
     function() shot("end") end,
 }
 

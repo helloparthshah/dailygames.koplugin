@@ -107,6 +107,34 @@ function Http.getJson(url, headers)
     return data
 end
 
+--- Streams a large response through on_chunk(text) without keeping it in
+-- memory. on_chunk returns false to stop early (counts as success).
+-- Returns the HTTP status code (200 when stopped early), or nil + error.
+function Http.stream(url, on_chunk, block_timeout, total_timeout)
+    local stopped = false
+    local function sink(chunk, err)
+        if chunk == nil then return 1 end
+        if on_chunk(chunk) == false then
+            stopped = true
+            return nil, "stopped"
+        end
+        return 1
+    end
+    if has_socketutil then socketutil:set_timeout(block_timeout or 15, total_timeout or 300) end
+    local ok, code = pcall(function()
+        return socket.skip(1, http.request {
+            url = url,
+            headers = { ["User-Agent"] = Http.user_agent, ["Accept"] = "application/json" },
+            sink = sink,
+        })
+    end)
+    if has_socketutil then socketutil:reset_timeout() end
+    if stopped then return 200 end
+    if not ok then return nil, tostring(code) end
+    if type(code) ~= "number" then return nil, tostring(code or "network error") end
+    return code
+end
+
 --- Downloads a URL to a file (e.g. a product photo). Returns true or nil + error.
 function Http.download(url, path)
     local f, open_err = io.open(path .. ".part", "wb")

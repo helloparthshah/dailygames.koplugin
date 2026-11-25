@@ -61,4 +61,29 @@ assert(st:find("Top: Rugby 700 · Volleyball 200 · Kickball 95 · x1 5", 1, tru
 assert(Kr.shortCount(749270) == "749k" and Kr.shortCount(1622708) == "1.6M" and Kr.shortCount(2000000) == "2M" and Kr.shortCount(1500) == "1.5k" and Kr.shortCount(950) == "950")
 assert(st:find("0 other divers chose this", 1, true), "only you gave x2")
 plug:onDailyGamesKrillion(); assert(pops == 1, "popularity is cached")
+-- deepest answers: scan the answer sheet in chunks, keeping only top-tier answers
+local sheet = '{"date":"2026-11-21","prompts":[{"id":"p1","text":"A","answers":[{"answer":"Eton wall game","aliases":["wall {game}","x\\"y"],"tier":"krillion","score":100,"quip":"No goal since 1909."},{"answer":"Rugby","tier":"plankton","score":10}]},'
+    .. '{"id":"p2","text":"B","answers":[{"answer":"San Marino","tier":"krillion","score":100},{"answer":"Canada","tier":"plankton","score":10}]}]}'
+for _, size in ipairs { 1, 7, 64, #sheet } do
+    local got = {}
+    local scan = Kr.deepestScanner(nil, function(pid, o) got[#got + 1] = pid .. "=" .. o.answer .. "=" .. tostring(o.quip) end)
+    for i = 1, #sheet, size do scan(sheet:sub(i, i + size - 1)) end
+    assert(table.concat(got, "|") == "p1=Eton wall game=No goal since 1909.|p2=San Marino=nil", size .. ": " .. table.concat(got, "|"))
+end
+local stops = Kr.deepestScanner(1, function() end); assert(stops(sheet) == false, "stops once it has enough")
+-- the summary button downloads it once; later summaries show the deepest answers
+local streamed = 0
+package.loaded["dailygames/http"].stream = function(url, on_chunk)
+    assert(url == K .. "/api/reveal?date=2026-11-21", url); streamed = streamed + 1
+    for i = 1, #sheet, 50 do if on_chunk(sheet:sub(i, i + 49)) == false then break end end
+    return 200
+end
+for i = #SHOWN, 1, -1 do SHOWN[i] = nil end
+plug:onDailyGamesKrillion(); local sv = top()
+local deepBtn = sv.buttons_table[2] and sv.buttons_table[2][1]
+assert(deepBtn and deepBtn.text:find("deepest"), "summary offers the deepest answers")
+deepBtn.callback()
+local sv2 = top(); assert(sv2 ~= sv and sv2.text:find("Deepest: Eton wall game. No goal since 1909.", 1, true), sv2.text)
+assert(sv2.text:find("Deepest: San Marino", 1, true) and not sv2.buttons_table[2], "no button once downloaded")
+plug:onDailyGamesKrillion(); assert(streamed == 1 and top().text:find("Deepest: San Marino", 1, true), "kept for the day")
 print("KRILLION PASSED")

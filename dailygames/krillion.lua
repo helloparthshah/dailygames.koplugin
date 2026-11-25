@@ -486,6 +486,90 @@ function Krillion.shareText(entry)
         tostring(entry.dayNumber), entry.score or 0, table.concat(em))
 end
 
+-- deepest answers --------------------------------------------------------------
+
+--- End index of the JSON object starting at `start` in `s`, or nil if it
+-- isn't complete yet.
+local function objectEnd(s, start)
+    local depth, in_str, esc = 0, false, false
+    for i = start, #s do
+        local c = s:byte(i)
+        if in_str then
+            if esc then esc = false
+            elseif c == 92 then esc = true -- backslash
+            elseif c == 34 then in_str = false end
+        elseif c == 34 then in_str = true
+        elseif c == 123 then depth = depth + 1
+        elseif c == 125 then
+            depth = depth - 1
+            if depth == 0 then return i end
+        end
+    end
+end
+
+local function lastFind(s, needle, before)
+    local last, i = nil, 1
+    while true do
+        local j = s:find(needle, i, true)
+        if not j or j >= before then return last end
+        last, i = j, j + 1
+    end
+end
+
+--- A chunk handler for the answer sheet (/api/reveal) that keeps only each
+-- prompt's top-tier ("krillion") answer, so the ~33 MB file is never held in
+-- memory. Calls found(promptId, answer) for each; stops after `want` of them.
+function Krillion.deepestScanner(want, found)
+    local buf, count = "", 0
+    return function(chunk)
+        buf = buf .. chunk
+        while true do
+            local m = buf:find('"tier":"krillion"', 1, true)
+            if not m then
+                -- keep enough to hold an answer object split across chunks
+                if #buf > 131072 then buf = buf:sub(-65536) end
+                return true
+            end
+            local start = lastFind(buf, '{"answer":"', m)
+            if not start then
+                buf = buf:sub(m + 1)
+            else
+                local stop = objectEnd(buf, start)
+                if not stop then return true end -- wait for the rest of it
+                local obj = Http.decode(buf:sub(start, stop))
+                local id_at = lastFind(buf, '"id":"', start)
+                local pid = id_at and buf:match('^"id":"([^"]+)"', id_at)
+                if type(obj) == "table" and obj.answer and pid then
+                    found(pid, obj)
+                    count = count + 1
+                    if want and count >= want then return false end
+                end
+                buf = buf:sub(stop + 1)
+            end
+        end
+    end
+end
+
+--- Downloads today's answer sheet once to find each prompt's deepest answer.
+function Krillion.findDeepest(date, want)
+    local answers = {}
+    local code, err = UI.withBusy("Downloading today's answer sheet (about 30 MB)…", function()
+        return Http.stream(BASE_URL .. "/api/reveal?date=" .. date, Krillion.deepestScanner(want, function(pid, obj)
+            answers[pid] = { answer = obj.answer, quip = obj.quip, score = obj.score }
+        end), 20, 600)
+    end)
+    if code ~= 200 or next(answers) == nil then
+        return nil, err or (code == 403 and "Only today's answer sheet is public." or ("HTTP " .. tostring(code)))
+    end
+    Store.set("krillion/deepest", { date = date, answers = answers })
+    return answers
+end
+
+local function cachedDeepest(date)
+    local d = Store.get("krillion/deepest")
+    return type(d) == "table" and d.date == date and d.answers or nil
+end
+
 local TOP_ANSWERS = 5
 
 --- Per prompt: total answers, the top few, and how many others gave your answer.
@@ -552,6 +636,7 @@ function Krillion.showSummary(date, entry, resets_at, already)
         table.insert(lines, string.format("Deeper than %d%% of divers today.", math.floor(entry.betterThan + 0.5)))
     end
     local stats = Krillion.answerStats(date, entry)
+    local deepest = cachedDeepest(date)
     table.insert(lines, "")
     table.insert(lines, "Dive log")
     for idx, r in ipairs(entry.results or {}) do
@@ -561,6 +646,10 @@ function Krillion.showSummary(date, entry, resets_at, already)
             table.insert(lines, "   " .. a .. "miss, 0")
         else
             table.insert(lines, string.format("   %s  ·  %s, %d", r.answer or "", tierLabel(r), r.score or 0))
+        end
+        local deep = deepest and deepest[r.promptId]
+        if deep then
+            table.insert(lines, "   Deepest: " .. deep.answer .. ((deep.quip and deep.quip ~= "") and (". " .. deep.quip) or ""))
         end
         local st = stats and stats[r.promptId]
         if st then
@@ -606,11 +695,25 @@ function Krillion.showSummary(date, entry, resets_at, already)
             end,
         })
     end
+    local rows = { row }
+    if not deepest and date == Krillion.today() then
+        table.insert(rows, { {
+            text = "Show deepest answers (≈30 MB download)",
+            callback = function()
+                local found, ferr = Krillion.findDeepest(date, #(entry.results or {}))
+                if not found then
+                    return UIManager:show(InfoMessage:new { text = "Couldn't get the answer sheet.\n" .. tostring(ferr) })
+                end
+                UIManager:close(viewer)
+                Krillion.showSummary(date, entry, resets_at, already)
+            end,
+        } })
+    end
     viewer = TextViewer:new {
         title = "Krillion",
         text = table.concat(lines, "\n"),
         add_default_buttons = true,
-        buttons_table = { row },
+        buttons_table = rows,
     }
     UIManager:show(viewer)
 end
