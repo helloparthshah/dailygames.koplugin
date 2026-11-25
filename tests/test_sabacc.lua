@@ -223,6 +223,40 @@ do
     assert(said, "the shift message names your lost Sabacc")
 end
 
+-- table talk: every regular has lines for every situation; on, they talk; off, never
+do
+    for _, r in ipairs(Sabacc.ROSTER) do
+        local d = Sabacc.DIALOGUE[r.name]
+        assert(d, "lines for " .. r.name)
+        for _, kind in ipairs { "raise", "call", "junk", "win", "shift" } do
+            assert(d[kind] and #d[kind] >= 3, r.name .. " " .. kind)
+        end
+    end
+    local function play(talk)
+        local quotes, wins = 0, 0
+        for _ = 1, 40 do
+            local t = Sabacc.newTable()
+            t.watch, t.talk = true, talk
+            for _ = 1, 300 do
+                if t.phase == "done" or t.phase == "broke" then break end
+                if t.phase == "watch" then
+                    if t.quote then quotes = quotes + 1 end
+                    Sabacc.step(t)
+                elseif t.phase == "trade" then Sabacc.trade(t, "stand")
+                elseif not Sabacc.bet(t, "raise", 30) then
+                    if not Sabacc.bet(t, Sabacc.owe(t) > 0 and "call" or "check") then Sabacc.bet(t, "junk") end
+                end
+            end
+            if t.quote then wins = wins + 1 end
+        end
+        return quotes, wins
+    end
+    local q, w = play(true)
+    assert(q > 10 and w > 0, "the regulars talk: " .. q .. " lines, " .. w .. " winners' lines")
+    q, w = play(false)
+    assert(q == 0 and w == 0, "a quiet table says nothing")
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot
@@ -320,7 +354,16 @@ do
     local g = app.game
     assert(g.watch == true, "shown one at a time by default")
     local seen_watch, seen_dice, guard = 0, false, 0
-    while g.phase ~= "done" and guard < 200 do
+    local hands = 0
+    while not (seen_watch > 0 and seen_dice) and hands < 6 and guard < 600 do
+        if g.phase == "done" then
+            hands = hands + 1
+            press(app, "Next hand")
+            g = app.game
+        elseif g.phase == "broke" then
+            press(app, "New table")
+            g = app.game
+        end
         guard = guard + 1
         if g.phase == "watch" then
             seen_watch = seen_watch + 1
@@ -331,10 +374,15 @@ do
             else press(app, "Next ›") end
         elseif g.phase == "trade" then press(app, "Stand")
         elseif g.phase == "bet" then press(app, Sabacc.owe(g) > 0 and "Junk" or "Check") end
-        if g.phase == "done" then break end
         g = app.game
     end
     assert(seen_watch > 0 and seen_dice, "saw opponents' moves and the dice")
+    while app.game.phase ~= "done" do -- finish this hand
+        if app.game.phase == "watch" then press(app, "Skip to my turn")
+        elseif app.game.phase == "trade" then press(app, "Stand")
+        elseif app.game.phase == "bet" then press(app, Sabacc.owe(app.game) > 0 and "Junk" or "Check")
+        else break end
+    end
     -- Skip jumps straight to your move
     press(app, "Next hand")
     guard = 0
@@ -351,6 +399,11 @@ do
     end
     app:togglePace()
     assert(app.game.watch == true)
+    assert(app.game.talk == true, "table talk on by default")
+    app:toggleTalk()
+    assert(app.game.talk == false and STORE["sabacc/talk"] == false)
+    app:toggleTalk()
+    assert(app.game.talk == true)
     while top() ~= app do UIManager:close(top()) end -- the confirmation toasts
 end
 

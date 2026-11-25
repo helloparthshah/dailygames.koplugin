@@ -289,7 +289,7 @@ function Sabacc.newHand(g, first)
     if not first then g.dealer = nextSeat(g.dealer) end
     g.deck, g.discard, g.junk = Sabacc.newDeck(), {}, {}
     g.pot, g.round, g.dice, g.winners, g.new, g.log = 0, 1, nil, nil, nil, {}
-    g.actor, g.pending = nil, nil
+    g.actor, g.pending, g.quote, g.shift_quote = nil, nil, nil, nil
     g.phase = "busy" -- the engine is running; "trade" / "bet" mean it's your move
     local arrivals = {}
     for i, p in ipairs(g.players) do
@@ -321,6 +321,94 @@ function Sabacc.newHand(g, first)
     for _, t in ipairs(arrivals) do g.log[#g.log + 1] = t end
     startTrading(g)
     return g
+end
+
+-- dialogue ----------------------------------------------------------------------------
+
+-- What the regulars say. Lines never depend on the hand they hold: a bluff
+-- and a real raise sound the same, so dialogue is never a tell.
+local DIALOGUE = {
+    ["Tal Merrow"] = {
+        raise = { "Let's make this worth the trip.", "I've flown through worse odds than you.", "Raising. Try to keep up.", "Feeling lucky. Or am I?" },
+        call = { "I'll see that.", "Wouldn't miss it.", "Sure, why not.", "You don't scare me." },
+        junk = { "Not this run.", "Even I know when to dump cargo.", "I'll catch the next one." },
+        win = { "Easy money.", "Told you it was all legitimate.", "Pleasure doing business.", "Fuel's paid for this month." },
+        shift = { "Oh, come on.", "That's just bad navigation.", "Fine. New cargo." },
+    },
+    ["K-7 Unit"] = {
+        raise = { "Probability favours a raise. I think.", "I am raising. Please do not be alarmed.", "My calculations permit this. Mostly." },
+        call = { "The odds are acceptable. Barely.", "Calling. I have run the numbers twice.", "I shall match that, reluctantly." },
+        junk = { "Retreat is the logical option.", "I decline to continue. Politely.", "My circuits advise caution." },
+        win = { "One step closer to owning myself!", "Oh my. That went rather well.", "Statistically improbable. Delightful." },
+        shift = { "That was not in my calculations.", "Oh dear. Oh dear, oh dear.", "Recalculating everything." },
+    },
+    ["Old Jessa"] = {
+        raise = { "Drinks aren't free, and neither is this.", "Let's see what you're made of.", "Raising, dear. Keep up." },
+        call = { "I'll humour you.", "Fair's fair.", "I've seen bigger bets from smaller fools." },
+        junk = { "Not worth the trouble.", "I'll sit this one out.", "The bar needs tending anyway." },
+        win = { "House rules, dear. The house usually wins.", "That's the rent covered.", "Put it on my tab. Oh wait, it's mine." },
+        shift = { "Every night, the dice.", "Typical.", "Well, shuffle the stars." },
+    },
+    ["Varro Quill"] = {
+        raise = { "Go on. Make my evening interesting.", "I always collect.", "Let's raise the price on your head." },
+        call = { "I'll follow you anywhere.", "Patience is my trade.", "Called. I'm watching you." },
+        junk = { "Another day.", "I'll let this one go. For now.", "Marked. Not forgotten." },
+        win = { "Bounty collected.", "Nobody gets away.", "Exactly as planned." },
+        shift = { "The dice don't scare me.", "Annoying.", "New target, then." },
+    },
+    ["Nessa Dray"] = {
+        raise = { "Punching it.", "Let's see what this hand can do.", "Full throttle." },
+        call = { "Course holding steady.", "I'll ride this out.", "In for the ride." },
+        junk = { "Pulling out of this one.", "Not worth the fuel.", "Abort, abort." },
+        win = { "That's a new hyperdrive coil!", "Smooth landing.", "One step closer to my own ship." },
+        shift = { "Turbulence!", "Hold on, we're jumping.", "Didn't see that coming." },
+    },
+    ["Brakk"] = {
+        raise = { "More. Always more.", "Push it all in!", "Brakk raises. Brakk always raises." },
+        call = { "Brakk does not back down.", "Bring it.", "Ha! Fine." },
+        junk = { "Tactical retreat.", "This fight is not worth it.", "Next time, I crush you." },
+        win = { "Victory!", "Brakk wins. As usual.", "Pay up, little ones." },
+        shift = { "Bah! Chaos!", "Brakk likes chaos.", "New weapons, then." },
+    },
+    ["Ilsa Venn"] = {
+        raise = { "Let's make it interesting.", "I do love a big pot.", "Shall we?" },
+        call = { "Of course.", "I'll indulge you.", "How curious." },
+        junk = { "Your table, this time.", "I'll let you have that one.", "Patience is a skill." },
+        win = { "Thank you, darling.", "Always a pleasure.", "I read you like a datapad." },
+        shift = { "Well. That's inconvenient.", "How rude.", "The dice have a sense of humour." },
+    },
+    ["B3-L Unit"] = {
+        raise = { "The table accepts a raise.", "Raising, per house standards.", "Wager increased." },
+        call = { "Bet matched.", "Calling, as is proper.", "Wager accepted." },
+        junk = { "Folding. Next hand, please.", "This hand is declined.", "Withdrawing from play." },
+        win = { "The house... I mean, I win.", "Pot awarded. To me.", "Payout processed." },
+        shift = { "Shift declared. Reshuffling.", "Irregular, but legal.", "Dealing new hands. Out of habit." },
+    },
+    ["Doran Pike"] = {
+        raise = { "I, uh, think I'll raise.", "Going to regret this.", "This one's for the farm." },
+        call = { "Okay. I'm in.", "I'll stay. Just this once.", "Hope this pays off." },
+        junk = { "Farm needs that more than I do.", "Not my hand.", "I'll keep my credits, thanks." },
+        win = { "Huh! I won?", "New vaporator parts!", "Wait till they hear this back home." },
+        shift = { "Like a sandstorm.", "Oh no.", "Well, that's farming." },
+    },
+    ["Mira Sol"] = {
+        raise = { "I move that we raise.", "Let's test your conviction.", "Noted. Raising." },
+        call = { "I'll see that, for the record.", "Calling. I suspect you're bluffing.", "Seconded." },
+        junk = { "I yield the floor.", "I'll abstain.", "Withdrawn, for now." },
+        win = { "Motion carried.", "As I expected.", "That goes in my notes." },
+        shift = { "Highly irregular.", "An unscheduled recess.", "Let the record show: chaos." },
+    },
+}
+Sabacc.DIALOGUE = DIALOGUE
+
+local TALK_CHANCE = 1 / 3 -- how often a raise, call or junk comes with a line
+
+--- A line for player p in situation `kind`, or nil (talk off, quiet this time).
+local function say(g, p, kind, chance)
+    if not g.talk or not p.ai then return nil end
+    local lines = DIALOGUE[p.name] and DIALOGUE[p.name][kind]
+    if not lines or math.random() >= (chance or TALK_CHANCE) then return nil end
+    return lines[math.random(#lines)]
 end
 
 -- moves (shared by you and the computer players) ---------------------------------
@@ -611,6 +699,9 @@ local function aiBet(g, p)
     end
     p.last = text:sub(1, 1):upper() .. text:sub(2) .. "."
     if text == "junked" or text:find("^raised") then g.log[#g.log + 1] = p.name .. " " .. text .. "." end
+    local kind = text:find("^raised") and "raise" or text:find("^called") and "call" or text == "junked" and "junk"
+    p.says = kind and say(g, p, kind) or nil
+    if p.says and not g.watch then g.log[#g.log + 1] = string.format('%s: "%s"', p.name, p.says) end
 end
 
 -- hand flow ------------------------------------------------------------------------
@@ -634,6 +725,12 @@ local function award(g, w, how)
     g.msg = before .. string.format("%s %s %s the Pot of %d%s%s.", how, who, w.ai and "wins" or "win", won, extra,
         e and how:find("Showdown") and (" with " .. e.name) or "")
     g.winners = { seat }
+    local line = say(g, w, "win", 1)
+    g.quote = line and string.format('%s: "%s"', w.name, line) or nil
+    if g.shift_quote then -- a shift on the last roll: keep that reaction in the story
+        g.msg = g.msg:gsub("Showdown", g.shift_quote .. " Showdown", 1)
+        g.shift_quote = nil
+    end
     g.phase = "done"
 end
 
@@ -690,12 +787,22 @@ local function spike(g)
             for _ = 1, n do p.hand[#p.hand + 1] = draw(g) end
         end
         g.new = nil
+        -- someone at the table reacts
+        local talkers = {}
+        for _, p in ipairs(active(g)) do if p.ai then talkers[#talkers + 1] = p end end
+        local who = talkers[1] and talkers[math.random(#talkers)]
+        local line = who and say(g, who, "shift", 0.7)
+        if line then
+            g.shift_quote = string.format('%s: "%s"', who.name, line)
+            if not g.watch then g.log[#g.log + 1] = g.shift_quote end
+        end
     end
     g.round = g.round + 1
     g.log[#g.log + 1] = text
     if g.round > ROUNDS then return showdown(g) end
     if g.watch then -- let the player see the dice before trading starts
         g.phase, g.actor, g.pending, g.msg = "watch", "dice", "trade", text
+        g.quote, g.shift_quote = g.shift_quote, nil
         return
     end
     startTrading(g)
@@ -722,6 +829,8 @@ function pause(g, seat)
     local p = g.players[seat]
     g.phase, g.actor = "watch", seat
     g.msg = p.name .. " " .. p.last:sub(1, 1):lower() .. p.last:sub(2)
+    g.quote = p.says and ('"' .. p.says .. '"') or nil
+    p.says = nil
 end
 
 --- Watching: carry on after a pause. With `skip`, run on to your next move
@@ -731,7 +840,7 @@ function Sabacc.step(g, skip)
     if not skip then g.log = {} end -- the moves were seen one by one
     local watch = g.watch
     if skip then g.watch = false end
-    g.phase, g.actor = "busy", nil
+    g.phase, g.actor, g.quote = "busy", nil, nil
     if g.pending == "trade" then
         g.pending = nil
         startTrading(g)
@@ -752,13 +861,14 @@ function advance(g)
             if p.out then
                 g.traded, g.cur = g.traded + 1, nextSeat(g.cur)
             elseif not p.ai then
-                g.phase = "trade"
+                g.phase, g.quote = "trade", nil
                 g.log[#g.log + 1] = string.format("Round %d: your trade.", g.round)
                 g.msg = table.concat(g.log, " ")
                 g.log = {}
                 return
             else
                 aiTrade(g, p)
+                p.says = nil
                 local seat = g.cur
                 g.traded, g.cur = g.traded + 1, nextSeat(g.cur)
                 if g.watch then return pause(g, seat) end
@@ -773,7 +883,7 @@ function advance(g)
             if p.out or (p.acted and p.paid == g.bet) then
                 g.cur = nextSeat(g.cur)
             elseif not p.ai then
-                g.phase = "bet"
+                g.phase, g.quote = "bet", nil
                 local owe = Sabacc.owe(g, p)
                 g.log[#g.log + 1] = owe == 0 and string.format("Round %d betting: check, raise or junk.", g.round)
                     or string.format("The bet is %d; you owe %d.", g.bet, owe)
@@ -1343,7 +1453,29 @@ function Screen:drawMessage(bb, x, y)
     local x0, x1, y0, y1 = x + pad, x + W - pad, y + math.floor(h * 0.1), y + h - math.floor(h * 0.1)
     bb:paintRect(x0, y0, bl, bt, UI.BLACK); bb:paintRect(x0, y0, bt, bl, UI.BLACK)
     bb:paintRect(x1 - bl, y1 - bt, bl, bt, UI.BLACK); bb:paintRect(x1 - bt, y1 - bl, bt, bl, UI.BLACK)
-    local f, lines = UI.fitLines(g.msg or "", W - 2 * pad - 6 * u, math.floor(h * 0.8), 3)
+    local tw = W - 2 * pad - 6 * u
+    if g.quote then
+        -- the move above, what they said below in italics
+        tw = W - 2 * pad - 10 * u -- clear of the corner brackets
+        -- one line at full size when it fits, two smaller lines when it doesn't
+        local function size(f) return f.orig_size or f.size or f[2] or 0 end
+        local function fit(text, box, opts)
+            local f1, l1 = UI.fitLines(text, tw, math.floor(box * 0.62), 1, opts)
+            local f2, l2 = UI.fitLines(text, tw, box, 2, opts)
+            if l1[1]:sub(-3) ~= "…" and size(f1) >= size(f2) then return f1, l1 end
+            return f2, l2
+        end
+        local f, lines = fit(g.msg or "", math.floor(h * 0.44))
+        local lh = math.floor(h * 0.44 / 2)
+        local top = y + math.floor(h * 0.06) + (#lines == 1 and math.floor(lh / 2) or 0)
+        for li, l in ipairs(lines) do UI.drawText(bb, f, l, x, top + (li - 1) * lh, W, lh, UI.BLACK) end
+        local qf, qlines = fit(g.quote, math.floor(h * 0.4), { font = "NotoSans-Italic.ttf" })
+        local qh = math.floor(h * 0.4 / 2)
+        local qtop = y + math.floor(h * 0.52) + (#qlines == 1 and math.floor(qh / 3) or 0)
+        for li, l in ipairs(qlines) do UI.drawText(bb, qf, l, x, qtop + (li - 1) * qh, W, qh, UI.DARK) end
+        return
+    end
+    local f, lines = UI.fitLines(g.msg or "", tw, math.floor(h * 0.8), 3)
     local lh = math.floor(h * 0.8 / math.max(2, #lines))
     local start = y + math.floor((h - lh * #lines) / 2)
     for li, l in ipairs(lines) do
@@ -1757,6 +1889,7 @@ TIES
 CONTROLS
 • The buttons at the bottom are the moves you can make right now; each shows its cost underneath. Greyed-out buttons are ones you can't afford.
 • Opponents' moves and the spike dice are shown one at a time: the player moving gets a heavy outline, and the game moves on by itself after a moment. Tap Next › to move on straight away, or Skip to my turn to jump ahead. ☰ > Opponents' moves switches this to instant.
+• The regulars talk now and then when they raise, call, junk, win or get hit by a Sabacc Shift. What they say never gives away their hand. ☰ > Table talk turns it off.
 • To raise, tap Raise, set the amount with −10 and +10 (up to everything you have), then tap Raise to. Cancel goes back.
 • To trade, tap one of your cards first (it lifts up). The buttons change to Trade with deck, Trade with discard and Cancel. Tap the card again to put it back.
 • The line above the buttons on the right tells you what to do: TAP A CARD TO TRADE, YOU OWE 10 and so on.
@@ -1797,7 +1930,23 @@ function App:setup()
         end
     end
     self.game.watch = self:watching()
+    self.game.talk = self:talking()
     self.sel = nil
+end
+
+--- Table talk: the regulars' lines (on by default).
+function App:talking()
+    return Store.get("sabacc/talk", true) ~= false
+end
+
+function App:toggleTalk()
+    local talk = not self:talking()
+    Store.set("sabacc/talk", talk)
+    self.game.talk = talk
+    if not talk then self.game.quote = nil end
+    self:save()
+    self:refresh()
+    UI.notify(talk and "The regulars will chat at the table." or "The table is quiet now.", 2)
 end
 
 --- Opponents' turns: shown one by one (default) or instant.
@@ -1877,6 +2026,7 @@ end
 function App:newTable()
     self.game = Sabacc.newTable()
     self.game.watch = self:watching()
+    self.game.talk = self:talking()
     self.sel = nil
     self:save()
     self:rebuild()
@@ -1957,6 +2107,7 @@ function App:menuItems()
         { text = "How to play", callback = function() self:showHelp() end },
         { text = self:watching() and "Opponents' moves: one at a time" or "Opponents' moves: instant",
             callback = function() self:togglePace() end },
+        { text = self:talking() and "Table talk: on" or "Table talk: off", callback = function() self:toggleTalk() end },
         { text = "New table (reset credits)", callback = function() self:newTable() end },
     }
 end
