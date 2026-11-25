@@ -7,6 +7,7 @@ assert(P.onDailyGamesStrands)
 local d = os.date("%Y-%m-%d")
 local N = "https://www.nytimes.com/svc"
 -- WORDLE
+os.remove("/tmp/dgtest/cache/nyt-wordle-words.txt") -- start from the bundled list
 local W = require("dailygames/wordle")
 local e = W.evaluate("SPEED", "ABIDE"); assert(e[1]=="absent" and e[3]=="present" and e[4]=="absent" and e[5]=="present", table.concat(e,","))
 e = W.evaluate("EERIE", "THREE"); print("EERIE/THREE", table.concat(e,","))
@@ -25,6 +26,26 @@ assert(W.isWord("CRANE") and W.isWord("SLATE") and not W.isWord("ZZZZZ") and not
 for _,k in ipairs{"X","Q","J","V","K","ENTER"} do app:onKey(k) end
 assert(app.status=="Not in word list" and #app.state.guesses==1 and app.state.current=="XQJVK")
 for _=1,5 do app:onKey("DEL") end
+-- NYT's own guess list (from its page script) replaces the bundled one
+assert(W.wordSource() == "enable" and not W.isWord("DWALM"))
+local fake = {}
+for i = 0, 5999 do
+    local w = ""
+    local n = i
+    for _ = 1, 5 do w = w .. string.char(97 + n % 26); n = math.floor(n / 26) end
+    fake[#fake + 1] = '"' .. w .. '"'
+end
+fake[#fake + 1] = '"dwalm"'; fake[#fake + 1] = '"crane"'; fake[#fake + 1] = '"aahed"'
+ROUTES["https://www.nytimes.com/games/wordle/index.html"] = function(o) assert(o.raw)
+    return '<script src="https://www.nytimes.com/games-assets/v2/111.aaa.js"></script><script src="https://www.nytimes.com/games-assets/v2/9879.bbb.js"></script>', 200 end
+ROUTES["https://www.nytimes.com/games-assets/v2/111.aaa.js"] = function() return 'var x=["hello","world"];', 200 end
+ROUTES["https://www.nytimes.com/games-assets/v2/9879.bbb.js"] = function() return 'const o=[' .. table.concat(fake, ",") .. '],t=["short"];', 200 end
+assert(#W.parseWordList('a=[' .. table.concat(fake, ",") .. ']') == #fake)
+STORE["wordle/words_checked"] = nil
+W.updateWordList()
+assert(W.wordSource() == "nyt" and W.isWord("DWALM") and W.isWord("CRANE") and not W.isWord("SLATE"), "uses NYT's list")
+assert(STORE["wordle/words_script"] == "9879")
+os.remove("/tmp/dgtest/cache/nyt-wordle-words.txt"); W.resetWords(); assert(W.wordSource() == "enable")
 
 for _,k in ipairs{"C","R","A","N","X","DEL","E","ENTER"} do app:onKey(k) end
 assert(app:isWon()); print("wordle status:", app.status)
