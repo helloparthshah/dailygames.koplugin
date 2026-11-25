@@ -1,0 +1,199 @@
+---------------------------------------------
+                launching...
+  _  _____  ____                _
+ | |/ / _ \|  _ \ ___  __ _  __| | ___ _ __
+ | ' / | | | |_) / _ \/ _` |/ _` |/ _ \ '__|
+ | . \ |_| |  _ <  __/ (_| | (_| |  __/ |
+ |_|\_\___/|_| \_\___|\__,_|\__,_|\___|_|
+
+ It's a scroll... It's a codex... It's KOReader!
+
+ [*] Current time: 11/25/26-04:49:13
+has monolibtic? no (libs/libkoreader-monolibtic.so: cannot open shared object file: No such file or directory)
+lib_search_path: libs/?
+lib_basic_format: lib%s.so
+lib_version_format: lib%s.so.%s
+ [*] Version: v2026.07.1
+
+ffi.load: rt.so.1 (RTLD_GLOBAL)
+ffi.findlib: utf8proc [3]
+ffi.load: libs/libutf8proc.so.3
+ffi.findlib: blitbuffer
+ffi.load: libs/libblitbuffer.so
+ffi.findlib: SDL3 [0]
+ffi.load: libs/libSDL3.so.0
+Started SDL in /home/runner/work/dailygames.koplugin/dailygames.koplugin/squashfs-root/usr/lib/koreader/ using x11 video driver
+ffi.findlib: lodepng
+ffi.load: libs/liblodepng.so
+11/25/26-04:49:16 INFO  initializing for device Linux 
+11/25/26-04:49:16 INFO  framebuffer resolution: {
+  h = 1648,
+  w = 1236
+} --[[table: 0x7544d01c7dc0]] 
+ffi.findlib: wrap-mupdf
+ffi.load: libs/libwrap-mupdf.so
+ffi.findlib: sqlite3 [0]
+ffi.load: libs/libsqlite3.so.0
+11/25/26-04:49:16 INFO  Performing one-time migration for 20200421 
+11/25/26-04:49:16 WARN  os.remove: /home/runner/.config/koreader/cache/fontlist/fontinfo.dat: No such file or directory 
+ffi.findlib: freetype [6]
+ffi.load: libs/libfreetype.so.6
+ffi.findlib: harfbuzz [0]
+ffi.load: libs/libharfbuzz.so.0
+ffi.findlib: zstd [1]
+ffi.load: libs/libzstd.so.1
+11/25/26-04:49:16 INFO  /home/runner/.config/koreader/cache/fontlist/fontinfo.dat fopen: No such file or directory -> initializing it 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210306 (1/2) 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210306 (2/2) 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210330 
+ffi.findlib: leptonica [6]
+ffi.load: libs/libleptonica.so.6
+ffi.findlib: k2pdfopt [2]
+ffi.load: libs/libk2pdfopt.so.2
+ffi.findlib: archive [13]
+ffi.load: libs/libarchive.so.13
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210404 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210409 
+11/25/26-04:49:16 WARN  os.rename: /home/runner/.config/koreader/cache/fontinfo.dat: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210412 
+11/25/26-04:49:16 WARN  os.rename: /home/runner/.config/koreader/cache/calibre-libraries.lua: No such file or directory 
+11/25/26-04:49:16 WARN  os.rename: /home/runner/.config/koreader/cache/calibre-books.dat: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210414 
+11/25/26-04:49:16 WARN  os.remove: /home/runner/.config/koreader/cache/calibre/books.dat: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210503 & 20210508 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210518 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210521 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210531 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210622 
+11/25/26-04:49:16 WARN  os.remove: /home/runner/.config/koreader/cache/fontlist/fontinfo.dat: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210629 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210715 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210720 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210831 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20210925 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20220116 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20220205 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20220819 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20220914 
+11/25/26-04:49:16 WARN  os.remove: /home/runner/.config/koreader/cache/fontlist/fontinfo.dat: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20220930 
+11/25/26-04:49:16 WARN  loadfile: cannot open /home/runner/.config/koreader/defaults.persistent.lua: No such file or directory 
+11/25/26-04:49:16 WARN  os.rename: /home/runner/.config/koreader/defaults.persistent.lua: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20221027 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230531 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230703 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230707 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230710 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230731 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230802 
+11/25/26-04:49:16 INFO  statistics.sqlite3 not found. 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20230901 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20231217 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240408 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240616 
+11/25/26-04:49:16 WARN  os.remove: /home/runner/.config/koreader/cache/fontlist/fontinfo.dat: No such file or directory 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240731 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240911 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240914 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240915 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20240928 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20241123 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20241207 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20241208 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20241228 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250207 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250302 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250318 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250405 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250601 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250914 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20250929 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20260306 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20260428 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20260512 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20260517 
+11/25/26-04:49:16 INFO  Performing one-time migration for 20260623 
+11/25/26-04:49:16 INFO  Looking for plugins in directory: plugins 
+11/25/26-04:49:16 INFO  Looking for plugins in directory: /home/runner/dg 
+11/25/26-04:49:16 WARN  PluginLoader: dailygames name in _meta.lua, is deprecated and will be ignored. 
+11/25/26-04:49:16 WARN  PluginLoader: dgshots name in _meta.lua, is deprecated and will be ignored. 
+11/25/26-04:49:16 INFO  DGSHOTS screen 1236x1648 dpi 300 
+11/25/26-04:49:16 INFO  CoverBrowser: setting default display modes 
+11/25/26-04:49:16 WARN  BookInfo cache DB schema updated from version 0 to version 20201210 
+11/25/26-04:49:16 WARN  Deleting existing /home/runner/.config/koreader/settings/bookinfo_cache.sqlite3 to recreate it 
+11/25/26-04:49:16 WARN  No gestures file or invalid gestures file found, copying defaults 
+11/25/26-04:49:16 WARN  No hotkeys file or invalid hotkeys file found, building defaults 
+11/25/26-04:49:21 INFO  DGSHOTS SHOT 01_home top=? |  | Documents will be rendered in color on this device. / If your device is grayscale, you can disable color rendering in the screen sub-menu for reduced memory usage. 
+11/25/26-04:49:25 INFO  DGSHOTS SHOT 02_hub top=? |  | Documents will be rendered in color on this device. / If your device is grayscale, you can disable color rendering in the screen sub-menu for reduced memory usage. 
+11/25/26-04:49:33 INFO  DGSHOTS SHOT 03_wordle_start top=wordle_app |  |  
+11/25/26-04:49:38 INFO  DGSHOTS SHOT 04_wordle_guesses top=wordle_app |  |  
+11/25/26-04:49:42 INFO  DGSHOTS SHOT 05_wordle_solved top=wordle_app |  |  
+11/25/26-04:49:46 INFO  DGSHOTS SHOT 06_wordle_menu top=? | Wordle #1985 |  
+11/25/26-04:49:52 INFO  DGSHOTS SHOT 07_after_wordle top=? | KOReader |  
+11/25/26-04:49:56 INFO  DGSHOTS SHOT 08_connections_start top=connections_app |  |  
+11/25/26-04:50:00 INFO  DGSHOTS SHOT 09_connections_selected top=connections_app |  |  
+11/25/26-04:50:04 INFO  DGSHOTS SHOT 10_connections_solved_one top=connections_app |  |  
+11/25/26-04:50:08 INFO  DGSHOTS SHOT 11_connections_one_away top=connections_app |  |  
+11/25/26-04:50:14 INFO  DGSHOTS SHOT 12_strands_start top=strands_app |  |  
+11/25/26-04:50:18 INFO  DGSHOTS SHOT 13_strands_found top=strands_app |  |  
+11/25/26-04:50:22 INFO  DGSHOTS SHOT 14_strands_path top=strands_app |  |  
+11/25/26-04:50:26 INFO  DGSHOTS SHOT 15_strands_hint top=strands_app |  |  
+11/25/26-04:50:33 INFO  DGSHOTS SHOT 16_mini_start top=crossword_app |  |  
+11/25/26-04:50:37 INFO  DGSHOTS SHOT 17_mini_typed top=crossword_app |  |  
+11/25/26-04:50:41 INFO  DGSHOTS SHOT 18_mini_down top=crossword_app |  |  
+11/25/26-04:50:45 INFO  DGSHOTS SHOT 19_mini_check top=crossword_app |  |  
+11/25/26-04:50:49 INFO  DGSHOTS SHOT 20_mini_clues top=? | Clues |  
+11/25/26-04:50:55 INFO  DGSHOTS SHOT 21_after_mini top=? | KOReader |  
+11/25/26-04:50:59 INFO  DGSHOTS SHOT 22_daily_crossword top=crossword_app |  |  
+11/25/26-04:51:07 INFO  DGSHOTS SHOT 23_atlantic_start top=crossword_app |  |  
+11/25/26-04:51:11 INFO  DGSHOTS SHOT 24_atlantic_typed top=crossword_app |  |  
+ffi.findlib: webpdemux [2]
+ffi.load: libs/libwebpdemux.so.2
+11/25/26-04:51:19 INFO  DGSHOTS SHOT 25_foodguessr_start top=foodguessr_app |  |  
+11/25/26-04:51:23 INFO  DGSHOTS SHOT 26_foodguessr_typed top=foodguessr_app |  |  
+11/25/26-04:51:27 INFO  DGSHOTS SHOT 27_foodguessr_guess top=foodguessr_app |  |  
+ffi.findlib: turbojpeg [0.5.0]
+ffi.load: libs/libturbojpeg.so.0.5.0
+11/25/26-04:51:34 INFO  DGSHOTS SHOT 28_moreless_start top=moreless_app |  |  
+11/25/26-04:51:46 INFO  DGSHOTS SHOT 29_marveldle_typed top=marveldle_app |  |  
+11/25/26-04:51:54 INFO  DGSHOTS SHOT 30_wheretaken_start top=wheretaken_app |  |  
+11/25/26-04:51:58 INFO  DGSHOTS SHOT 31_wheretaken_guess top=wheretaken_app |  |  
+11/25/26-04:52:03 INFO  DGSHOTS SHOT 32_wheretaken_bonus top=wheretaken_app |  |  
+11/25/26-04:52:14 INFO  DGSHOTS SHOT 33_cuisinematch_start top=cuisinematch_app |  |  
+11/25/26-04:52:18 INFO  DGSHOTS SHOT 34_cuisinematch_second top=cuisinematch_app |  |  
+11/25/26-04:52:22 INFO  DGSHOTS SHOT 35_cuisinematch_night top=cuisinematch_app |  |  
+11/25/26-04:52:34 INFO  DGSHOTS SHOT 36_plateoff_start top=plateoff_app |  |  
+11/25/26-04:52:38 INFO  DGSHOTS SHOT 37_plateoff_result top=plateoff_app |  |  
+11/25/26-04:52:43 WARN  failed rendering image (MuPDF): ./ffi/mupdf.lua:91: could not load image data: unknown image file format (7) 
+11/25/26-04:52:43 WARN  ImageWidget: Failed to render image file: /home/runner/.config/koreader/cache/brandle-3.png 
+11/25/26-04:52:45 INFO  DGSHOTS SHOT 38_brandle_start top=brandle_app |  |  
+11/25/26-04:52:50 INFO  DGSHOTS SHOT 39_brandle_guesses top=brandle_app |  |  
+11/25/26-04:52:54 INFO  DGSHOTS SHOT 40_brandle_solved top=brandle_app |  |  
+11/25/26-04:53:01 INFO  DGSHOTS SHOT 41_costcodle_start top=costcodle_app |  |  
+11/25/26-04:53:05 INFO  DGSHOTS SHOT 42_costcodle_guesses top=costcodle_app |  |  
+11/25/26-04:53:13 INFO  DGSHOTS SHOT 43_sabacc_start top=sabacc_app | Sabacc |  
+11/25/26-04:53:17 INFO  DGSHOTS SHOT 44_sabacc_round2 top=sabacc_app | Sabacc |  
+11/25/26-04:53:23 INFO  DGSHOTS SHOT 45_endless_menu top=? | Endless modes |  
+11/25/26-04:53:32 INFO  DGSHOTS SHOT 46_costcodle_endless_solved top=costcodle_app |  |  
+11/25/26-04:53:39 INFO  DGSHOTS SHOT 47_costcodle_endless_next top=costcodle_app |  |  
+11/25/26-04:53:47 INFO  DGSHOTS SHOT 48_wordle_endless top=wordle_app |  |  
+11/25/26-04:53:53 INFO  DGSHOTS SHOT 49_connections_endless top=connections_app |  |  
+11/25/26-04:54:00 INFO  DGSHOTS SHOT 50_strands_endless top=strands_app |  |  
+11/25/26-04:54:06 INFO  DGSHOTS SHOT 51_mini_endless top=crossword_app |  |  
+11/25/26-04:54:12 INFO  DGSHOTS SHOT 52_daily_endless top=crossword_app |  |  
+11/25/26-04:54:20 INFO  DGSHOTS SHOT 53_foodguessr_endless top=foodguessr_app |  |  
+11/25/26-04:54:36 INFO  DGSHOTS SHOT 54_cuisinematch_endless top=cuisinematch_app |  |  
+11/25/26-04:54:43 INFO  DGSHOTS SHOT 55_atlantic_endless top=crossword_app |  |  
+11/25/26-04:54:47 INFO  DGSHOTS SHOT 56_atlantic_endless_menu top=? | The Atlantic · 2026-11-16 |  
+11/25/26-04:54:55 INFO  DGSHOTS SHOT 57_krillion_intro top=? |  | Krillion #132 /  / Seven prompts, 25 seconds each. / Name anything that fits. Rarer answers dive deeper and score more. /  / Ready? 
+11/25/26-04:54:59 INFO  DGSHOTS SHOT 58_krillion_preview top=? |  | Round 1 of 7 /  / Name a sport where you're allowed to kick the ball 
+11/25/26-04:55:07 INFO  DGSHOTS SHOT 59_krillion_answer top=? | Round 1 of 7  ·  25 s |  
+11/25/26-04:55:11 INFO  DGSHOTS krillion popularity load took 0 s 
+11/25/26-04:55:13 INFO  DGSHOTS SHOT 60_krillion_summary top=? | Krillion | Krillion #0  ·  2026-11-24 / Score: 0 / 700   Depth: 0 m / Plankton. Plenty of ocean left down there. /  / Dive log / 1. Prompt 1 /    miss, 0 /    Top: Rugby 797k · Volleyball 693k · American football 489k · G 
+11/25/26-04:55:18 INFO  DGSHOTS krillion deepest: 7 found in 1 s  
+11/25/26-04:55:21 INFO  DGSHOTS SHOT 61_krillion_deepest top=? | Krillion | Krillion #0  ·  2026-11-24 / Score: 0 / 700   Depth: 0 m / Plankton. Plenty of ocean left down there. /  / Dive log / 1. Prompt 1 /    miss, 0 /    Deepest: Eton wall game. Its St Andrew's Day match hasn't seen a  
+11/25/26-04:55:25 INFO  DGSHOTS SHOT 62_end top=? | KOReader |  
+11/25/26-04:55:27 INFO  DGSHOTS DONE 
+11/25/26-04:55:27 INFO  Preparing to quit UIManager 
+11/25/26-04:55:27 INFO  UIManager: No dialogs left to show 
+11/25/26-04:55:27 INFO  Tearing down UIManager with exit code: 0 
