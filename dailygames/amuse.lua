@@ -6,9 +6,10 @@ Amuse Labs PuzzleMe crosswords (used by The Atlantic).
   puzzle page: https://cdn3.amuselabs.com/<site>/crossword?id=<id>&set=<set>
                -> <script id="params">{ "rawc": "<scrambled base64 JSON>" }
 
-rawc is unscrambled with the same fixed segment reversals as Yf() in the
-player's c-min.js (build 22d01b0), then base64 and JSON decoded. If Amuse
-changes the scramble, update PASSES below. Decoded fields:
+rawc is unscrambled with fixed segment reversals (the player's c-min.js has
+them in a function starting `var e,i=t.split("")`), then base64 and JSON
+decoded. Amuse changes the numbers now and then: when the built-in PASSES
+fail, they are read from that build's c-min.js and cached. Decoded fields:
   w, h; box[x][y] (column-major; "\0" = block); clueNums[x][y];
   placedWords[] = { clueNum, clue = { clue }, x, y, acrossNotDown, nBoxes }
 ]]
@@ -18,14 +19,17 @@ local Http = require("dailygames/http")
 
 local Amuse = {}
 
--- { first start, gap after each group, segment lengths } (from c-min.js Yf)
+-- { first start, gap after each group, segment lengths } (c-min.js build 14e6b8d)
 local PASSES = {
-    { 33, 33, { 5, 15, 4 } },
-    { 12, 36, { 17, 4 } },
-    { 0, 45, { 6, 6 } },
+    { 37, 37, { 14, 11, 16 } },
+    { 0, 67, { 4, 7 } },
+    { 11, 52, { 17, 9 } },
 }
 
-function Amuse.unscramble(t)
+local ok_store, Store = pcall(require, "dailygames/store")
+if not ok_store then Store = nil end
+
+function Amuse.unscramble(t, passes)
     local L = #t
     local a = {}
     for i = 1, L do a[i - 1] = t:sub(i, i) end
@@ -36,7 +40,7 @@ function Amuse.unscramble(t)
             lo, hi = lo + 1, hi - 1
         end
     end
-    for _, pass in ipairs(PASSES) do
+    for _, pass in ipairs(passes or PASSES) do
         local n = pass[1]
         while n < L do
             local s = n
@@ -86,8 +90,8 @@ local function params(html)
 end
 
 --- Decodes rawc into the puzzle table (or nil).
-function Amuse.decode(rawc)
-    for _, candidate in ipairs { Amuse.unscramble(rawc), rawc } do
+function Amuse.decode(rawc, passes)
+    for _, candidate in ipairs { Amuse.unscramble(rawc, passes), rawc } do
         local data = Http.decode(Amuse.base64(candidate))
         if type(data) == "table" and data.box then return data end
     end
@@ -154,6 +158,31 @@ end
 
 local function base(site) return "https://cdn3.amuselabs.com/" .. site end
 
+--- Reads the reversal passes from the player script's unscramble function.
+function Amuse.parsePasses(js)
+    local body = js:match('{var e,i=t%.split%(""%);(.-)return i%.join%(""%)}')
+    if not body then return nil end
+    local passes = {}
+    for start, gap, rest in body:gmatch("n=(%d+);n<t%.length;n%+=(%d+)%)(.-)n=s%+=c}") do
+        local segs = {}
+        for k in rest:gmatch("c=%d+%+s<t%.length%?(%d+):") do segs[#segs + 1] = tonumber(k) end
+        if #segs > 0 then passes[#passes + 1] = { tonumber(start), tonumber(gap), segs } end
+    end
+    return #passes > 0 and passes or nil
+end
+
+--- Passes for the build a puzzle page uses (cached per build).
+function Amuse.passesFor(site, page)
+    local build = page and page:match('src="([%w]+)/js/c%-min%.js')
+    if not build then return nil end
+    local cached = Store and Store.get("amuse/passes")
+    if type(cached) == "table" and cached.build == build then return cached.passes end
+    local js = fetchText(base(site) .. "/" .. build .. "/js/c-min.js")
+    local passes = js and Amuse.parsePasses(js)
+    if passes and Store then Store.set("amuse/passes", { build = build, passes = passes }) end
+    return passes
+end
+
 --- Puzzle ids the date picker lists (newest first; The Atlantic shows ~12).
 function Amuse.list(site, set)
     local picker, err = fetchText(base(site) .. "/date-picker?set=" .. set)
@@ -178,8 +207,14 @@ end
 function Amuse.fetch(site, set, id)
     local page, err = fetchText(base(site) .. "/crossword?id=" .. id .. "&set=" .. set)
     local q = params(page)
-    local puzzle = q and q.rawc and Amuse.decode(q.rawc)
-    if not puzzle then return nil, err or "couldn't decode the puzzle" end
+    if not (q and q.rawc) then return nil, err or "no puzzle in the page" end
+    local puzzle = Amuse.decode(q.rawc)
+    if not puzzle then
+        -- the scramble changed: learn it from this build's player script
+        local passes = Amuse.passesFor(site, page)
+        puzzle = passes and Amuse.decode(q.rawc, passes)
+    end
+    if not puzzle then return nil, "couldn't decode the puzzle" end
     local data = Amuse.toCrossword(puzzle)
     data.id = id
     data.date = Amuse.idDate(id) or os.date("%Y-%m-%d")

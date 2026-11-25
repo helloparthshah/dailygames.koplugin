@@ -8,8 +8,11 @@ local JSON = package.loaded["json"]
 local A = require("dailygames/amuse")
 
 -- inverse of Amuse.unscramble: the same reversal passes, applied in reverse order
-local function scramble(t)
-    local PASSES = { { 0, 45, { 6, 6 } }, { 12, 36, { 17, 4 } }, { 33, 33, { 5, 15, 4 } } }
+local CURRENT = { { 37, 37, { 14, 11, 16 } }, { 0, 67, { 4, 7 } }, { 11, 52, { 17, 9 } } }
+local function scramble(t, passes)
+    passes = passes or CURRENT
+    local PASSES = {}
+    for i = #passes, 1, -1 do PASSES[#PASSES + 1] = passes[i] end
     local L, a = #t, {}
     for i = 1, L do a[i - 1] = t:sub(i, i) end
     local function rev(lo, hi)
@@ -94,4 +97,18 @@ local f = assert(A.fetch("atlantic", "atlantic", "atlantic_20261121"))
 assert(f.date == "2026-11-21" and f.width == 3)
 assert(A.fetch("atlantic", "atlantic", "atlantic_20261122") == nil)
 assert(A.latest("atlantic", "atlantic").date == "2026-11-21", "latest falls back to the second puzzle")
+
+-- the passes can be read from the player script (the shape c-min.js uses)
+local js = 'x;function Kf(t){var e,i=t.split("");(e=[]).push(2);for(var n=33;n<t.length;n+=33){for(r=s=n,a=s+(c=4+s<t.length?5:t.length-s+1)-1;r<a;a--,r++){}'
+    .. 'for(r=s+=c,a=s+(c=14+s<t.length?15:t.length-s+1)-1;r<a;a--,r++){}n=s+=c}(e=[]).push(8);for(n=0;n<t.length;n+=45){for(r=s=n,a=s+(c=5+s<t.length?6:t.length-s+1)-1;r<a;a--,r++){}n=s+=c}return i.join("")}function Jf(t){}'
+local parsed = assert(A.parsePasses(js))
+assert(#parsed == 2 and parsed[1][1] == 33 and parsed[1][2] == 33 and table.concat(parsed[1][3], ",") == "5,15" and table.concat(parsed[2][3], ",") == "6")
+-- a page scrambled with other passes: the built-in ones fail, the script's are fetched and used
+local OTHER = { { 33, 33, { 5, 15 } }, { 0, 45, { 6 } } }
+local other_rawc = scramble(b64encode(JSON.encode(puzzle)), OTHER)
+pages["https://cdn3.amuselabs.com/atlantic/crossword?id=atlantic_20261120&set=atlantic"] =
+    '<script src="abc1234/js/c-min.js?v=1"></script><script id="params">' .. JSON.encode { rawc = other_rawc } .. '</script>'
+pages["https://cdn3.amuselabs.com/atlantic/abc1234/js/c-min.js"] = js
+local g = assert(A.fetch("atlantic", "atlantic", "atlantic_20261120"), "decodes with passes from the script")
+assert(g.width == 3 and g.date == "2026-11-20")
 print("AMUSE PASSED")
