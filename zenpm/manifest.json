@@ -9,7 +9,7 @@
     {
       "id": "dailygames",
       "name": "Daily Games",
-      "version": "1.21.0",
+      "version": "1.22.0",
       "description": "Daily puzzles designed for e-ink: NYT Wordle, Connections, Strands, Mini and Daily Crossword, The Atlantic crossword, Krillion, FoodGuessr (plus Cuisine Match and Plate-Off), Costcodle, WhereTaken, More/Less, Marveldle and Brandle, with endless modes, plus Sabacc: an offline Corellian Spike card game against three computer players. Adds itself to the ZenOS App Launcher.",
       "author": "helloparthshah",
       "category": "games",
@@ -21,7 +21,7 @@
       "source": "https://github.com/helloparthshah/dailygames.koplugin",
       "source_asset": "dailygames.koplugin.zip",
       "source_type": "release",
-      "published_at": "2026-11-25T04:57:13Z",
+      "published_at": "2026-11-25T23:50:52Z",
       "readme_url": "https://raw.githubusercontent.com/helloparthshah/dailygames.koplugin/main/README.md",
       "versions_url": "https://raw.githubusercontent.com/helloparthshah/dailygames.koplugin/main/zenpm/versions.json"
     }
