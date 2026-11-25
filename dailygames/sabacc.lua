@@ -445,24 +445,141 @@ local function aiTrade(g, p)
     p.last = text:sub(1, 1):upper() .. text:sub(2) .. "."
 end
 
+-- How a computer player bets, after poker AIs:
+--  * equity: its chance of winning, from quick simulations of the rest of the
+--    hand using only cards it can't see (hidden hands, deck, junk), the trades
+--    still to come and the chance of a Sabacc Shift;
+--  * pot odds: it calls when equity is worth the price (call 100 into a pot
+--    of 300 needs about 25%), so a big raise doesn't scare off a good hand;
+--  * defence: borderline hands sometimes call anyway, so raising big can't
+--    simply steal every pot;
+--  * bet sizing in proportion to the pot, value bets with strong hands and
+--    the odd bluff, by personality (bold);
+--  * respect for big raises: a raise that's large against the pot usually
+--    means a strong hand, so equity is discounted by the raise's size;
+--  * a read on you: the more often you raise, the less it believes you.
+
+--- The cards player p can't see: the deck, other hands, the junk pile and the
+--- discard pile under the top card.
+local function unseenBy(g, p)
+    local pool = {}
+    for _, c in ipairs(g.deck) do pool[#pool + 1] = c end
+    for _, q in ipairs(g.players) do
+        if q ~= p then for _, c in ipairs(q.hand) do pool[#pool + 1] = c end end
+    end
+    for _, c in ipairs(g.junk) do pool[#pool + 1] = c end
+    for i = 1, #g.discard - 1 do pool[#pool + 1] = g.discard[i] end
+    return pool
+end
+
+--- The best hand after taking card c (keep, swap one card, or add it).
+local function improve(hand, c)
+    local best, be = hand, Sabacc.evaluate(hand)
+    local function try(h)
+        local e = Sabacc.evaluate(h)
+        if Sabacc.compare(e, be) < 0 then best, be = h, e end
+    end
+    for i = 1, #hand do
+        local h = { unpack(hand) }
+        h[i] = c
+        try(h)
+    end
+    if #hand < 5 then
+        local h = { unpack(hand) }
+        h[#h + 1] = c
+        try(h)
+    end
+    return best
+end
+
+--- Player p's chance of winning the hand (0..1), by simulation.
+function Sabacc.equity(g, p, sims)
+    sims = sims or 80
+    local sizes = {}
+    for _, q in ipairs(g.players) do
+        if q ~= p and not q.out then sizes[#sizes + 1] = #q.hand end
+    end
+    if #sizes == 0 then return 1 end
+    local pool = unseenBy(g, p)
+    local spikes = ROUNDS - g.round + 1 -- this round's spike dice and later ones
+    local won = 0
+    for _ = 1, sims do
+        local n = #pool
+        local function take()
+            if n == 0 then return nil end
+            local j = math.random(n)
+            pool[j], pool[n] = pool[n], pool[j]
+            n = n - 1
+            return pool[n + 1]
+        end
+        local hands = { { unpack(p.hand) } }
+        for k, size in ipairs(sizes) do
+            local h = {}
+            for _ = 1, size do h[#h + 1] = take() end
+            hands[k + 1] = h
+        end
+        for step = 1, spikes do
+            if math.random(6) == math.random(6) then -- a Sabacc Shift
+                for _, h in ipairs(hands) do
+                    for i = 1, #h do h[i] = take() or h[i] end
+                end
+            end
+            if step < spikes then -- another trading phase: everyone improves
+                for k, h in ipairs(hands) do
+                    local c = take()
+                    if c then hands[k] = improve(h, c) end
+                end
+            end
+        end
+        local mine, best, ties = Sabacc.evaluate(hands[1]), true, 1
+        for k = 2, #hands do
+            local c = Sabacc.compare(mine, Sabacc.evaluate(hands[k]))
+            if c > 0 then best = false; break end
+            if c == 0 then ties = ties + 1 end
+        end
+        if best then won = won + 1 / ties end
+    end
+    return won / sims
+end
+
 local function aiBet(g, p)
-    local s = strength(p.hand)
-    local owe = Sabacc.owe(g, p)
+    -- equity is worked out once per betting phase (the hand doesn't change)
+    local key = g.hand_no * 10 + g.round
+    if p.eq_key ~= key then p.eq, p.eq_key = Sabacc.equity(g, p), key end
+    local e = p.eq
+    local owe, pot, b = Sabacc.owe(g, p), g.pot, p.bold
+    local others = 0
+    for _, q in ipairs(g.players) do
+        if q ~= p and not q.out then others = others + 1 end
+    end
+    local fair = 1 / (others + 1) -- an even share of the pot
+    local keen = 0.5 ^ g.raises -- each raise this phase halves the urge to raise again
+    local function size(frac)
+        local amt = math.max(10, math.floor(pot * frac / 10 + 0.5) * 10)
+        return math.min(amt, math.floor((p.credits - owe) / 10) * 10)
+    end
     local text
     if owe == 0 then
-        -- no limit on raises (official rules); each raise already made this
-        -- phase halves the urge to raise again, so re-raise wars die out
-        if s > 0.72 and math.random() < p.bold * 0.5 ^ g.raises and p.credits >= owe + RAISES[2] then
-            text = applyBet(g, p, "raise", s > 0.9 and RAISES[2] or RAISES[1])
+        if e > fair * (1.6 - b * 0.6) and math.random() < (0.4 + b * 0.5) * keen then
+            text = applyBet(g, p, "raise", size(0.3 + e * 0.7)) -- value bet
+        elseif e < fair * 0.6 and g.round < ROUNDS and math.random() < b * 0.2 * keen then
+            text = applyBet(g, p, "raise", size(0.5)) -- bluff
         end
         text = text or applyBet(g, p, "check")
     else
-        local keen = s + math.random() * 0.3 + (g.round < ROUNDS and 0.1 or 0) - owe / 100
-        if p.credits >= owe and keen > 0.45 then
-            if s > 0.88 and math.random() < p.bold * 0.5 * 0.5 ^ g.raises and p.credits >= owe + RAISES[1] then
-                text = applyBet(g, p, "raise", RAISES[1])
+        local need = owe / (pot + owe) -- pot odds
+        -- a big raise says the raiser is probably strong: discount equity by
+        -- the raise's size against the pot, less so against a frequent raiser
+        local big = math.min(1, owe / math.max(10, pot - owe))
+        e = e - 0.35 * big * fair * (1 - 2 * (g.read or 0))
+        local luck = (math.random() - 0.5) * 0.08
+        if e + luck >= need then
+            if e > math.max(0.5, fair * 2) and math.random() < b * keen then
+                text = applyBet(g, p, "raise", size(0.4 + e * 0.6)) -- re-raise a strong hand
             end
             text = text or applyBet(g, p, "call")
+        elseif e + luck >= need * 0.75 and math.random() < 0.15 + b * 0.3 then
+            text = applyBet(g, p, "call") -- defend: don't let big raises steal every pot
         end
         text = text or applyBet(g, p, "junk")
     end
@@ -631,6 +748,12 @@ function Sabacc.bet(g, kind, amount)
     local me = you(g)
     local text = applyBet(g, me, kind, amount)
     if not text then return false end
+    -- the table's read on you: how much more often than usual you raise
+    g.your_turns = (g.your_turns or 0) + 1
+    if kind == "raise" then g.your_raises = (g.your_raises or 0) + 1 end
+    if g.your_turns >= 5 then
+        g.read = math.max(0, math.min(0.3, (g.your_raises or 0) / g.your_turns - 0.2))
+    end
     me.last = "You " .. text .. "."
     g.log[#g.log + 1] = me.last
     g.cur = nextSeat(g.cur)
@@ -1383,7 +1506,7 @@ end
 
 -- app ---------------------------------------------------------------------------------
 
-local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players picked at random from ten regulars (smugglers, droids, a bounty hunter and more). When one runs out of credits they leave and someone new sits down. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
+local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players picked at random from ten regulars (smugglers, droids, a bounty hunter and more). When one runs out of credits they leave and someone new sits down. They bet like poker players: each one estimates its chance of winning and weighs it against the price of calling, bets big with strong hands, bluffs now and then, and reads how often you raise. Bolder regulars raise and bluff more. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
 
 GOAL
 Have the best hand at the end of 3 rounds, as close to zero as possible. ☰ > Winning hands shows every hand in order of strength, with examples.

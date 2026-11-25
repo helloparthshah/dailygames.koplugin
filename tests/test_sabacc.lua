@@ -142,6 +142,39 @@ do
     end
 end
 
+-- poker-style betting: a strong hand calls a big raise, a hopeless one mostly folds
+do
+    local strong, weak, spots = 0, 0, 0
+    for _ = 1, 80 do
+        local t = Sabacc.newTable()
+        for _ = 1, 10 do
+            if t.phase ~= "trade" then break end
+            Sabacc.trade(t, "stand")
+        end
+        if t.phase == "bet" and Sabacc.owe(t) == 0 then
+            spots = spots + 1
+            t.players[1].credits = 500
+            t.players[2].hand = { { v = 0, s = 0 }, { v = 0, s = 0 } }      -- Pure Sabacc
+            t.players[3].hand = { { v = 9, s = 1 }, { v = 8, s = 2 } }      -- Nulrhek +17
+            t.players[2].eq_key, t.players[3].eq_key = nil, nil
+            Sabacc.bet(t, "raise", 150)
+            if not t.players[2].out then strong = strong + 1 end
+            if not t.players[3].out then weak = weak + 1 end
+        end
+    end
+    assert(spots >= 20, "found betting spots")
+    assert(strong == spots, "Pure Sabacc always calls a big raise")
+    assert(weak < spots * 0.5, "a hopeless hand mostly folds to a big raise: " .. weak .. "/" .. spots)
+    -- equity is a probability, about a fair share for a random hand
+    local t, total = Sabacc.newTable(), 0
+    for i = 2, 4 do
+        local e = Sabacc.equity(t, t.players[i], 60)
+        assert(e >= 0 and e <= 1)
+        total = total + e
+    end
+    assert(total > 0.3 and total < 1.2, "equities look sane: " .. total)
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot
