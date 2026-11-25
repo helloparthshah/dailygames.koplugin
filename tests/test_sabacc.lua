@@ -285,17 +285,19 @@ local app = top()
 assert(app.name == "sabacc_app")
 local guard = 0
 while app.game.phase ~= "trade" do
-    guard = guard + 1; assert(guard < 10)
-    press(app, "Next hand")
+    guard = guard + 1; assert(guard < 40)
+    press(app, app.game.phase == "watch" and "Next ›" or "Next hand")
 end
 paint(app)
 press(app, "Buy deck")
 assert(STORE["sabacc/orsl"] == app.game, "saved")
 guard = 0
 while app.game.phase ~= "done" do
-    guard = guard + 1; assert(guard < 30)
+    guard = guard + 1; assert(guard < 120)
     local board = paint(app)
-    if app.game.phase == "trade" then
+    if app.game.phase == "watch" then
+        press(app, "Next ›") -- an opponent's move or the dice, one at a time
+    elseif app.game.phase == "trade" then
         -- tap the first card on the drawn board, then trade it with the discard
         local h
         for _, hit in ipairs(board.hits) do if hit.card == 1 then h = hit end end
@@ -312,6 +314,45 @@ paint(app)
 press(app, "Next hand")
 assert(app.game.hand_no >= 2)
 paint(app)
+
+-- watching: opponents' moves pause one at a time; Next, Skip and the timer move on
+do
+    local g = app.game
+    assert(g.watch == true, "shown one at a time by default")
+    local seen_watch, seen_dice, guard = 0, false, 0
+    while g.phase ~= "done" and guard < 200 do
+        guard = guard + 1
+        if g.phase == "watch" then
+            seen_watch = seen_watch + 1
+            if g.actor == "dice" then seen_dice = true
+            else assert(g.players[g.actor].ai and g.msg:find(g.players[g.actor].name, 1, true), "says who moved") end
+            paint(app)
+            if seen_watch % 3 == 0 then runq() -- the timer moves on by itself
+            else press(app, "Next ›") end
+        elseif g.phase == "trade" then press(app, "Stand")
+        elseif g.phase == "bet" then press(app, Sabacc.owe(g) > 0 and "Junk" or "Check") end
+        if g.phase == "done" then break end
+        g = app.game
+    end
+    assert(seen_watch > 0 and seen_dice, "saw opponents' moves and the dice")
+    -- Skip jumps straight to your move
+    press(app, "Next hand")
+    guard = 0
+    while app.game.phase == "watch" and guard < 5 do guard = guard + 1; press(app, "Skip to my turn") end
+    assert(app.game.phase == "trade" or app.game.phase == "bet" or app.game.phase == "done")
+    -- the ☰ setting turns it off: no more pauses
+    app:togglePace()
+    assert(app.game.watch == false and STORE["sabacc/pace"] == "instant")
+    guard = 0
+    while app.game.phase ~= "done" and guard < 40 do
+        guard = guard + 1
+        assert(app.game.phase ~= "watch", "no pauses when instant")
+        if app.game.phase == "trade" then press(app, "Stand") else press(app, Sabacc.owe(app.game) > 0 and "Junk" or "Check") end
+    end
+    app:togglePace()
+    assert(app.game.watch == true)
+    while top() ~= app do UIManager:close(top()) end -- the confirmation toasts
+end
 
 -- Winning hands opens the drawn chart; a tap goes back to the table
 for _, item in ipairs(app:menuItems()) do if item.text == "Winning hands" then item.callback() end end
@@ -343,7 +384,8 @@ do
     local guard = 0
     while app.game.phase ~= "bet" do
         guard = guard + 1; assert(guard < 40, "never reached betting")
-        if app.game.phase == "trade" then press(app, "Stand")
+        if app.game.phase == "watch" then press(app, "Skip to my turn")
+        elseif app.game.phase == "trade" then press(app, "Stand")
         elseif app.game.phase == "done" or app.game.phase == "broke" then
             press(app, app.game.phase == "done" and "Next hand" or "New table")
         end

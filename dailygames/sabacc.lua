@@ -41,6 +41,7 @@ local BUY_DECK, BUY_DISCARD = 10, 20
 local JUNK_PENALTY = 10
 local RAISES = { 10, 20 } -- what the computer players raise by
 local STEP = 10 -- your raise picker moves in steps of this
+local WATCH_DELAY = 1.5 -- seconds each opponent's move stays on screen
 local ROUNDS, START = 3, 300
 local SEATS = 4
 local SAVE_KEY = "sabacc/orsl"
@@ -280,7 +281,7 @@ function Sabacc.newTable(credits)
     return g
 end
 
-local startTrading, advance
+local startTrading, advance, pause
 
 --- Deals a new hand; the dealer button moves one seat to the left.
 function Sabacc.newHand(g, first)
@@ -288,6 +289,7 @@ function Sabacc.newHand(g, first)
     if not first then g.dealer = nextSeat(g.dealer) end
     g.deck, g.discard, g.junk = Sabacc.newDeck(), {}, {}
     g.pot, g.round, g.dice, g.winners, g.new, g.log = 0, 1, nil, nil, nil, {}
+    g.actor, g.pending = nil, nil
     g.phase = "busy" -- the engine is running; "trade" / "bet" mean it's your move
     local arrivals = {}
     for i, p in ipairs(g.players) do
@@ -692,6 +694,10 @@ local function spike(g)
     g.round = g.round + 1
     g.log[#g.log + 1] = text
     if g.round > ROUNDS then return showdown(g) end
+    if g.watch then -- let the player see the dice before trading starts
+        g.phase, g.actor, g.pending, g.msg = "watch", "dice", "trade", text
+        return
+    end
     startTrading(g)
 end
 
@@ -711,6 +717,31 @@ function startTrading(g)
 end
 
 --- Runs the computer players until it's your move (or the hand ends).
+--- Watching: stop after a computer player's move so it can be shown.
+function pause(g, seat)
+    local p = g.players[seat]
+    g.phase, g.actor = "watch", seat
+    g.msg = p.name .. " " .. p.last:sub(1, 1):lower() .. p.last:sub(2)
+end
+
+--- Watching: carry on after a pause. With `skip`, run on to your next move
+-- (or the end of the hand) without stopping.
+function Sabacc.step(g, skip)
+    if g.phase ~= "watch" then return false end
+    if not skip then g.log = {} end -- the moves were seen one by one
+    local watch = g.watch
+    if skip then g.watch = false end
+    g.phase, g.actor = "busy", nil
+    if g.pending == "trade" then
+        g.pending = nil
+        startTrading(g)
+    else
+        advance(g)
+    end
+    g.watch = watch
+    return true
+end
+
 function advance(g)
     for _ = 1, 5000 do
         if g.phase == "done" or g.phase == "broke" then return end
@@ -728,7 +759,9 @@ function advance(g)
                 return
             else
                 aiTrade(g, p)
+                local seat = g.cur
                 g.traded, g.cur = g.traded + 1, nextSeat(g.cur)
+                if g.watch then return pause(g, seat) end
             end
         else
             local done = true
@@ -750,7 +783,9 @@ function advance(g)
                 return
             else
                 aiBet(g, p)
+                local seat = g.cur
                 g.cur = nextSeat(g.cur)
+                if g.watch then return pause(g, seat) end
             end
         end
     end
@@ -1179,6 +1214,11 @@ function Screen:drawOpponent(bb, p, seat, bx, by, bw, bh)
     local edge = p.out and UI.LIGHT or UI.BLACK
     local bg = win and UI.BLACK or UI.WHITE
     local fg = win and UI.WHITE or (p.out and UI.MID or UI.BLACK)
+    if g.phase == "watch" and g.actor == seat then
+        -- this player is making their move: a heavy outline around the panel
+        local o = math.floor(u * 0.9)
+        panel(bb, bx - o, by - o, bw + 2 * o, bh + 2 * o, c + o, o, UI.BLACK)
+    end
     panel(bb, bx, by, bw, bh, c, math.max(2, math.floor(u * 0.35)), edge, bg)
     -- name strip
     local sh = math.floor(bh * 0.2)
@@ -1261,7 +1301,8 @@ function Screen:drawTable(bb, x, y)
     local doubles = g.dice and g.dice[1] == g.dice[2]
     drawDie(bb, g.dice and g.dice[1], dx, dy, ds, doubles)
     drawDie(bb, g.dice and g.dice[2], dx + ds + math.floor(1.5 * u), dy, ds, doubles)
-    UI.drawText(bb, self.face_label, doubles and "SABACC SHIFT" or "SPIKE DICE", dx - pad, top + self.pile_h,
+    local rolling = g.phase == "watch" and g.actor == "dice"
+    UI.drawText(bb, self.face_label, doubles and "SABACC SHIFT" or (rolling and "> SPIKE DICE <" or "SPIKE DICE"), dx - pad, top + self.pile_h,
         2 * ds + math.floor(1.5 * u) + 2 * pad, label_h, UI.DARK, doubles)
 
     -- the pot: a notched chip between the piles and the dice
@@ -1358,7 +1399,8 @@ function Screen:drawFooter(bb, x, y)
     UI.drawText(bb, self.face_foot, name, nx, ny, nw, nh, UI.WHITE, true)
     if g.dealer == 1 then self:dealerTag(bb, x + pad + UI.measure(self.face_foot_small, me.credits .. " CR") + math.floor(2 * u), y, h, true, true) end
     local hint
-    if g.phase == "trade" then hint = self.app.sel and "PICK HOW TO TRADE" or "TAP A CARD TO TRADE"
+    if g.phase == "watch" then hint = g.actor == "dice" and "SPIKE DICE" or "OPPONENT'S MOVE"
+    elseif g.phase == "trade" then hint = self.app.sel and "PICK HOW TO TRADE" or "TAP A CARD TO TRADE"
     elseif g.phase == "bet" then
         local owe = Sabacc.owe(g)
         if self.app.raise_by then hint = "SET YOUR RAISE"
@@ -1714,6 +1756,7 @@ TIES
 
 CONTROLS
 • The buttons at the bottom are the moves you can make right now; each shows its cost underneath. Greyed-out buttons are ones you can't afford.
+• Opponents' moves and the spike dice are shown one at a time: the player moving gets a heavy outline, and the game moves on by itself after a moment. Tap Next › to move on straight away, or Skip to my turn to jump ahead. ☰ > Opponents' moves switches this to instant.
 • To raise, tap Raise, set the amount with −10 and +10 (up to everything you have), then tap Raise to. Cancel goes back.
 • To trade, tap one of your cards first (it lifts up). The buttons change to Trade with deck, Trade with discard and Cancel. Tap the card again to put it back.
 • The line above the buttons on the right tells you what to do: TAP A CARD TO TRADE, YOU OWE 10 and so on.
@@ -1753,7 +1796,50 @@ function App:setup()
             self.game = Sabacc.newTable()
         end
     end
+    self.game.watch = self:watching()
     self.sel = nil
+end
+
+--- Opponents' turns: shown one by one (default) or instant.
+function App:watching()
+    return Store.get("sabacc/pace", "watch") == "watch"
+end
+
+function App:togglePace()
+    local watch = not self:watching()
+    Store.set("sabacc/pace", watch and "watch" or "instant")
+    self.game.watch = watch
+    if not watch and self.game.phase == "watch" then Sabacc.step(self.game, true) end
+    self:save()
+    self:refresh()
+    UI.notify(watch and "Opponents' moves are now shown one at a time." or "Opponents now move instantly.", 2)
+end
+
+--- Watching: show the next move (or skip to your turn), and keep the pace going.
+function App:step(skip)
+    self:cancelTick()
+    if Sabacc.step(self.game, skip) then self:save() end
+    self:refresh()
+end
+
+function App:cancelTick()
+    if self.tick then UIManager:unschedule(self.tick) end
+    self.tick = nil
+end
+
+--- While watching, the next move comes up by itself after a short pause.
+function App:scheduleTick()
+    self:cancelTick()
+    if self.game.phase ~= "watch" or self.closed then return end
+    self.tick = function()
+        self.tick = nil
+        if not self.closed and self.game.phase == "watch" then self:step() end
+    end
+    UIManager:scheduleIn(WATCH_DELAY, self.tick)
+end
+
+function App:onExit()
+    self:cancelTick()
 end
 
 function App:save()
@@ -1790,6 +1876,7 @@ end
 
 function App:newTable()
     self.game = Sabacc.newTable()
+    self.game.watch = self:watching()
     self.sel = nil
     self:save()
     self:rebuild()
@@ -1839,6 +1926,11 @@ function App:buttonRow()
             enabled = can_raise, callback = function() self.raise_by = STEP; self:refresh() end }
         row[#row + 1] = { text = "Junk", sub = "fold · " .. JUNK_PENALTY .. " cr", callback = function() self:doBet("junk") end }
         return row
+    elseif g.phase == "watch" then
+        return {
+            { text = "Next ›", primary = true, callback = function() self:step() end },
+            { text = me.out and "Skip to the result" or "Skip to my turn", callback = function() self:step(true) end },
+        }
     elseif g.phase == "done" then
         return { { text = "Next hand", primary = true, callback = function()
             Sabacc.newHand(g)
@@ -1853,6 +1945,7 @@ end
 function App:rebuild()
     if self[1] then self[1]:free() end
     self[1] = Screen:new { width = self.dimen.w, height = self.dimen.h, app = self }
+    self:scheduleTick()
     -- expose the current buttons (tests and the emulator driver press them by text)
     self[1].buttons = { self:buttonRow() }
 end
@@ -1862,6 +1955,8 @@ function App:menuItems()
         { text = "Winning hands", callback = function() UIManager:show(ChartApp:new {}) end },
         { text = "The regulars", callback = function() UIManager:show(RegularsApp:new { game = self.game, page = 1 }) end },
         { text = "How to play", callback = function() self:showHelp() end },
+        { text = self:watching() and "Opponents' moves: one at a time" or "Opponents' moves: instant",
+            callback = function() self:togglePace() end },
         { text = "New table (reset credits)", callback = function() self:newTable() end },
     }
 end
