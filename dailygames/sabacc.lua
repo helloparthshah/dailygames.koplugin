@@ -41,7 +41,6 @@ local BUY_DECK, BUY_DISCARD = 10, 20
 local JUNK_PENALTY = 10
 local RAISES = { 10, 20 } -- what the computer players raise by
 local STEP = 10 -- your raise picker moves in steps of this
-local MAX_RAISES = 3
 local ROUNDS, START = 3, 300
 local SEATS = 4
 local SAVE_KEY = "sabacc/orsl"
@@ -372,7 +371,7 @@ local function applyBet(g, p, kind, amount)
         p.acted = true
         return "called " .. owe
     elseif kind == "raise" then
-        if not amount or g.raises >= MAX_RAISES or p.credits < owe + amount then return end
+        if not amount or amount <= 0 or p.credits < owe + amount then return end
         pay(g, p, owe + amount)
         g.bet = g.bet + amount
         g.raises = g.raises + 1
@@ -451,14 +450,16 @@ local function aiBet(g, p)
     local owe = Sabacc.owe(g, p)
     local text
     if owe == 0 then
-        if g.raises < MAX_RAISES and s > 0.72 and math.random() < p.bold then
+        -- no limit on raises (official rules); each raise already made this
+        -- phase halves the urge to raise again, so re-raise wars die out
+        if s > 0.72 and math.random() < p.bold * 0.5 ^ g.raises and p.credits >= owe + RAISES[2] then
             text = applyBet(g, p, "raise", s > 0.9 and RAISES[2] or RAISES[1])
         end
         text = text or applyBet(g, p, "check")
     else
         local keen = s + math.random() * 0.3 + (g.round < ROUNDS and 0.1 or 0) - owe / 100
         if p.credits >= owe and keen > 0.45 then
-            if g.raises < MAX_RAISES and s > 0.88 and math.random() < p.bold * 0.5 then
+            if s > 0.88 and math.random() < p.bold * 0.5 * 0.5 ^ g.raises and p.credits >= owe + RAISES[1] then
                 text = applyBet(g, p, "raise", RAISES[1])
             end
             text = text or applyBet(g, p, "call")
@@ -564,7 +565,7 @@ end
 
 --- Runs the computer players until it's your move (or the hand ends).
 function advance(g)
-    for _ = 1, 200 do
+    for _ = 1, 5000 do
         if g.phase == "done" or g.phase == "broke" then return end
         if onlyOneLeft(g) then return end
         if g.stage == "trade" then
@@ -1451,7 +1452,7 @@ CONTROLS
 
 HOUSE CHOICES
 Where the rules leave something open, this game does the following:
-• Raises go in steps of 10, and there are at most 3 raises in a betting phase, so hands keep moving.
+• Your raise picker moves in steps of 10. There is no limit on how many times the bet can be raised.
 • Everyone starts with 300 credits. A computer player who runs low leaves the table, and a random regular sits down with 300. If you can't cover the ante, start a new table from this menu.
 • The ORSL hand list is used, so Fleet, Prime Sabacc, Idiot's Array and similar hands from other tables count only as the plain hands they also are.
 
@@ -1549,7 +1550,7 @@ function App:buttonRow()
             row[1] = { text = "Call " .. owe, primary = true, enabled = me.credits >= owe,
                 callback = function() self:doBet("call") end }
         end
-        local can_raise = g.raises < MAX_RAISES and me.credits >= owe + STEP
+        local can_raise = me.credits >= owe + STEP
         if self.raise_by then
             -- raise picker: step the amount, then confirm
             local by = self.raise_by

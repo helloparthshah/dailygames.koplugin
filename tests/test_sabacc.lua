@@ -112,6 +112,36 @@ do
     assert((t.msg or ""):find(gone .. " leaves the table") or t.phase ~= "trade", "announced")
 end
 
+-- no limit on raises (official rules): a fourth, fifth... raise is allowed
+do
+    local t
+    for _ = 1, 50 do
+        t = Sabacc.newTable()
+        while t.phase == "trade" do Sabacc.trade(t, "stand") end
+        if t.phase == "bet" then break end
+    end
+    assert(t.phase == "bet", "reached betting")
+    t.raises = 7
+    local before = t.bet
+    assert(Sabacc.bet(t, "raise", 10), "raise after seven raises")
+    assert(t.raises >= 8 and (t.bet >= before + 10 or t.phase ~= "bet"))
+end
+-- betting always ends, even when you raise every time you can
+do
+    for _ = 1, 100 do
+        local t = Sabacc.newTable()
+        for i = 2, 4 do t.players[i].bold = 1 end -- the most reckless table possible
+        for _ = 1, 400 do
+            if t.phase == "done" or t.phase == "broke" then break end
+            if t.phase == "trade" then Sabacc.trade(t, "stand")
+            elseif not Sabacc.bet(t, "raise", 10) then
+                if not Sabacc.bet(t, Sabacc.owe(t) > 0 and "call" or "check") then Sabacc.bet(t, "junk") end
+            end
+        end
+        assert(t.phase == "done" or t.phase == "broke", "hand finished")
+    end
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot
