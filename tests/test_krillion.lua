@@ -46,4 +46,18 @@ local completes = 0
 for i = before + 1, #calls do if calls[i].score and calls[i].record ~= nil then completes = completes + 1 end end
 assert(completes == 0, "replay must not call /api/today/complete")
 assert(top()._name == "TextViewer")
+-- summary: how many others gave your answer, and each prompt's top answers
+local pops = 0
+ROUTES[K.."/api/answer-popularity?date=2026-11-21"] = function()
+    pops = pops + 1
+    return { date = "2026-11-21", asOf = "x", prompts = {
+        p1 = { x1 = 5, Rugby = 700, Volleyball = 200, Kickball = 95 },
+        p2 = { x2 = 1, Canada = 99 } } }, 200
+end
+for i = #SHOWN, 1, -1 do SHOWN[i] = nil end
+plug:onDailyGamesKrillion(); local st = top().text
+assert(st:find("4 other divers chose this", 1, true), st)
+assert(st:find("Top: Rugby 70% · Volleyball 20% · Kickball 10% · x1 <1%", 1, true), st)
+assert(st:find("0 other divers chose this", 1, true), "only you gave x2")
+plug:onDailyGamesKrillion(); assert(pops == 1, "popularity is cached")
 print("KRILLION PASSED")

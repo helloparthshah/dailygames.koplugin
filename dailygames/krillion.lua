@@ -119,6 +119,15 @@ function Api.submit(p)
     }
 end
 
+--- How many divers gave each answer today (only today's is public).
+-- Returns { [promptId] = { [answer] = count } } or nil.
+function Api.popularity(date)
+    local data, code = Http.request { url = BASE_URL .. "/api/answer-popularity?date=" .. date, timeout = 20 }
+    if code == 200 and type(data) == "table" and data.date == date and type(data.prompts) == "table" then
+        return data.prompts
+    end
+end
+
 function Api.complete(p)
     local body = { date = p.date, playerId = p.playerId, score = p.score, record = p.record and true or false }
     if p.record then
@@ -477,6 +486,55 @@ function Krillion.shareText(entry)
         tostring(entry.dayNumber), entry.score or 0, table.concat(em))
 end
 
+local TOP_ANSWERS = 5
+
+--- Per prompt: total answers, the top few, and how many others gave your answer.
+-- Kept in settings (the full list is a couple of MB) and refreshed every 15 min
+-- while it's still today's dive.
+function Krillion.answerStats(date, entry)
+    local cached = Store.get("krillion/popularity")
+    local fresh = type(cached) == "table" and cached.date == date
+    if fresh and (date ~= Krillion.today() or os.time() - (cached.fetched or 0) < 15 * 60) then
+        return cached.prompts
+    end
+    if date ~= Krillion.today() then return nil end
+    local prompts = UI.withBusy("Loading top answers…", function() return Api.popularity(date) end)
+    if not prompts then return fresh and cached.prompts or nil end
+    local mine = {}
+    for _, r in ipairs(entry.results or {}) do mine[r.promptId] = r.answer end
+    local stats = {}
+    for pid, counts in pairs(prompts) do
+        local total, list = 0, {}
+        for name, n in pairs(counts) do
+            if type(n) == "number" and n > 0 then
+                total = total + n
+                list[#list + 1] = { name, n }
+            end
+        end
+        table.sort(list, function(x, y) return x[2] > y[2] end)
+        local top = {}
+        for i = 1, math.min(TOP_ANSWERS, #list) do top[i] = list[i] end
+        local own = mine[pid] and counts[mine[pid]]
+        stats[pid] = { total = total, top = top, mine = type(own) == "number" and own or 0, mine_answer = mine[pid] }
+    end
+    Store.set("krillion/popularity", { date = date, fetched = os.time(), prompts = stats })
+    return stats
+end
+
+local function commas(n)
+    local s = tostring(math.floor(n))
+    while true do
+        local r, k = s:gsub("^(%d+)(%d%d%d)", "%1,%2")
+        s = r
+        if k == 0 then return s end
+    end
+end
+
+local function percent(n, total)
+    local p = n / math.max(total, 1) * 100
+    return p >= 1 and string.format("%d%%", math.floor(p + 0.5)) or "<1%"
+end
+
 function Krillion.showSummary(date, entry, resets_at, already)
     local lines = {}
     if already then
@@ -489,6 +547,7 @@ function Krillion.showSummary(date, entry, resets_at, already)
     if entry.betterThan then
         table.insert(lines, string.format("Deeper than %d%% of divers today.", math.floor(entry.betterThan + 0.5)))
     end
+    local stats = Krillion.answerStats(date, entry)
     table.insert(lines, "")
     table.insert(lines, "Dive log")
     for idx, r in ipairs(entry.results or {}) do
@@ -498,6 +557,18 @@ function Krillion.showSummary(date, entry, resets_at, already)
             table.insert(lines, "   " .. a .. "miss, 0")
         else
             table.insert(lines, string.format("   %s  ·  %s, %d", r.answer or "", tierLabel(r), r.score or 0))
+        end
+        local st = stats and stats[r.promptId]
+        if st then
+            if r.tier ~= "miss" and r.answer and r.answer ~= "" and st.mine_answer == r.answer then
+                -- like the site: everyone else who gave the same answer
+                local others = math.max(0, st.mine - 1)
+                table.insert(lines, string.format("   %s other %s chose this", commas(others),
+                    others == 1 and "diver" or "divers"))
+            end
+            local top = {}
+            for _, t in ipairs(st.top) do top[#top + 1] = t[1] .. " " .. percent(t[2], st.total) end
+            if #top > 0 then table.insert(lines, "   Top: " .. table.concat(top, " · ")) end
         end
     end
     local share = Krillion.shareText(entry)

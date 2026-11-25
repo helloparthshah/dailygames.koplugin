@@ -292,6 +292,17 @@ local STEPS = {
     function() end, function() end, function() end,
     function() shot("krillion_answer") end,
     function() closeAllGames() end,
+    -- Krillion summary with today's real top answers (a ~2.5 MB download)
+    function()
+        local K = mod("krillion")
+        local e = { dayNumber = 0, score = 0, results = {} }
+        for i = 1, 7 do e.results[i] = { promptId = "p" .. i, promptText = "Prompt " .. i, answer = "", tier = "miss", score = 0 } end
+        local t0 = os.time()
+        K.showSummary(K.today(), e, nil, false)
+        log("krillion popularity load took " .. (os.time() - t0) .. " s")
+    end,
+    function() shot("krillion_summary") end,
+    function() closeAllGames() end,
     function() shot("end") end,
 }
 
