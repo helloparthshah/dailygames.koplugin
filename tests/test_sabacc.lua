@@ -216,6 +216,35 @@ assert(top()._name == "TextViewer" and top().text:find("Outer Rim Sabacc League"
     and top().text:find("CONTROLS") and top().text:find("HOUSE CHOICES"))
 UIManager:close(top())
 
+-- raise picker: Raise opens it, −10 / +10 set the amount (capped at your credits), Raise to confirms
+do
+    local guard = 0
+    while app.game.phase ~= "bet" do
+        guard = guard + 1; assert(guard < 40, "never reached betting")
+        if app.game.phase == "trade" then press(app, "Stand")
+        elseif app.game.phase == "done" or app.game.phase == "broke" then
+            press(app, app.game.phase == "done" and "Next hand" or "New table")
+        end
+    end
+    local g, me = app.game, app.game.players[1]
+    me.credits = 75
+    local owe, bet = Sabacc.owe(g), g.bet
+    press(app, "Raise")
+    assert(app.raise_by == 10)
+    press(app, "+10"); press(app, "+10")
+    assert(app.raise_by == 30)
+    press(app, "−10")
+    assert(app.raise_by == 20)
+    for _ = 1, 10 do app:stepRaise(10) end
+    assert(app.raise_by == math.floor((75 - owe) / 10) * 10, "capped at what you can afford")
+    press(app, "Cancel")
+    assert(app.raise_by == nil and g.bet == bet, "cancel leaves the bet alone")
+    press(app, "Raise"); press(app, "+10")
+    local before = me.credits
+    press(app, "Raise to " .. (bet + 20))
+    assert(app.raise_by == nil and before - me.credits == owe + 20, "paid what you owed plus the raise")
+end
+
 -- a saved table is resumed
 local hand_no = app.game.hand_no
 app:onClose()

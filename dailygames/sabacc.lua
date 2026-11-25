@@ -39,7 +39,8 @@ local Sabacc = {}
 local POT_ANTE, SABACC_ANTE = 20, 10
 local BUY_DECK, BUY_DISCARD = 10, 20
 local JUNK_PENALTY = 10
-local RAISES = { 10, 20 }
+local RAISES = { 10, 20 } -- what the computer players raise by
+local STEP = 10 -- your raise picker moves in steps of this
 local MAX_RAISES = 3
 local ROUNDS, START = 3, 300
 local SEATS = 4
@@ -1204,7 +1205,8 @@ function Screen:drawFooter(bb, x, y)
     if g.phase == "trade" then hint = self.app.sel and "PICK HOW TO TRADE" or "TAP A CARD TO TRADE"
     elseif g.phase == "bet" then
         local owe = Sabacc.owe(g)
-        hint = owe > 0 and ("YOU OWE " .. owe) or (g.bet > 0 and ("BET " .. g.bet) or "NO BET YET")
+        if self.app.raise_by then hint = "SET YOUR RAISE"
+        else hint = owe > 0 and ("YOU OWE " .. owe) or (g.bet > 0 and ("BET " .. g.bet) or "NO BET YET") end
     end
     if hint then
         local tw = UI.measure(self.face_foot_small, hint)
@@ -1405,7 +1407,7 @@ EACH HAND
 
 2. BETTING. The bet starts at 0. Going round from the dealer's left, each player can:
 • Check, if no one has raised.
-• Raise the bet.
+• Raise the bet by any amount you can afford.
 • Call: pay what you owe to match the bet.
 • Junk: fold. Your cards go to the junk pile and you pay a 10 penalty into the Pot. If you can't cover the bet, you must junk.
 Betting goes round until everyone still in has matched the bet. If only one player is left, they win the hand at once.
@@ -1438,6 +1440,7 @@ TIES
 
 CONTROLS
 • The buttons at the bottom are the moves you can make right now; each shows its cost underneath. Greyed-out buttons are ones you can't afford.
+• To raise, tap Raise, set the amount with −10 and +10 (up to everything you have), then tap Raise to. Cancel goes back.
 • To trade, tap one of your cards first (it lifts up). The buttons change to Trade with deck, Trade with discard and Cancel. Tap the card again to put it back.
 • The line above the buttons on the right tells you what to do: TAP A CARD TO TRADE, YOU OWE 10 and so on.
 • The message in the middle sums up what happened since your last move: raises, who junked, the spike dice and the result.
@@ -1448,7 +1451,7 @@ CONTROLS
 
 HOUSE CHOICES
 Where the rules leave something open, this game does the following:
-• Raises are 10 or 20 at a time, and there are at most 3 raises in a betting phase, so hands keep moving.
+• Raises go in steps of 10, and there are at most 3 raises in a betting phase, so hands keep moving.
 • Everyone starts with 300 credits. A computer player who runs low leaves the table, and a random regular sits down with 300. If you can't cover the ante, start a new table from this menu.
 • The ORSL hand list is used, so Fleet, Prime Sabacc, Idiot's Array and similar hands from other tables count only as the plain hands they also are.
 
@@ -1498,7 +1501,16 @@ function App:doTrade(kind)
 end
 
 function App:doBet(kind, amount)
+    self.raise_by = nil
     if Sabacc.bet(self.game, kind, amount) then self:save() end
+    self:refresh()
+end
+
+--- Raise picker: change the raise by `delta` (a multiple of STEP), within your credits.
+function App:stepRaise(delta)
+    local g, me = self.game, self.game.players[1]
+    local max = math.floor((me.credits - Sabacc.owe(g)) / STEP) * STEP
+    self.raise_by = math.max(STEP, math.min(max, (self.raise_by or STEP) + delta))
     self:refresh()
 end
 
@@ -1537,11 +1549,20 @@ function App:buttonRow()
             row[1] = { text = "Call " .. owe, primary = true, enabled = me.credits >= owe,
                 callback = function() self:doBet("call") end }
         end
-        for _, r in ipairs(RAISES) do
-            row[#row + 1] = { text = "Raise " .. r, sub = "bet to " .. (g.bet + r),
-                enabled = g.raises < MAX_RAISES and me.credits >= owe + r,
-                callback = function() self:doBet("raise", r) end }
+        local can_raise = g.raises < MAX_RAISES and me.credits >= owe + STEP
+        if self.raise_by then
+            -- raise picker: step the amount, then confirm
+            local by = self.raise_by
+            return {
+                { text = "−" .. STEP, enabled = by > STEP, callback = function() self:stepRaise(-STEP) end },
+                { text = "Raise to " .. (g.bet + by), sub = "pay " .. (owe + by) .. " cr", primary = true,
+                    callback = function() self.raise_by = nil; self:doBet("raise", by) end },
+                { text = "+" .. STEP, enabled = me.credits >= owe + by + STEP, callback = function() self:stepRaise(STEP) end },
+                { text = "Cancel", callback = function() self.raise_by = nil; self:refresh() end },
+            }
         end
+        row[#row + 1] = { text = "Raise", sub = can_raise and "choose amount" or "can't raise",
+            enabled = can_raise, callback = function() self.raise_by = STEP; self:refresh() end }
         row[#row + 1] = { text = "Junk", sub = "fold · " .. JUNK_PENALTY .. " cr", callback = function() self:doBet("junk") end }
         return row
     elseif g.phase == "done" then
