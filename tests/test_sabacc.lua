@@ -175,6 +175,54 @@ do
     assert(total > 0.3 and total < 1.2, "equities look sane: " .. total)
 end
 
+-- stake sizing: a 50% hand doesn't bet its whole stack, even into a huge pot
+do
+    local t = Sabacc.newTable()
+    for _ = 1, 10 do if t.phase == "trade" then Sabacc.trade(t, "stand") end end
+    local p = t.players[2]
+    t.bet, t.raises, p.paid, p.out = 0, 0, 0, false
+    t.pot, p.credits, p.bold = 2000, 300, 1
+    p.eq, p.eq_key = 0.5, t.hand_no * 10 + t.round
+    local raised
+    for _ = 1, 200 do
+        t.bet, t.raises, p.paid, p.credits, t.pot = 0, 0, 0, 300, 2000
+        Sabacc._aiBet(t, p)
+        if p.paid > 0 then raised = math.max(raised or 0, p.paid) end
+    end
+    assert(raised and raised <= 300 * (0.15 + 0.45 * 0.5) + 10, "kept most of its credits: " .. tostring(raised))
+    p.eq = 0.95 -- near-certain: may go all in
+    local all_in = false
+    for _ = 1, 200 do
+        t.bet, t.raises, p.paid, p.credits, t.pot = 0, 0, 0, 300, 2000
+        Sabacc._aiBet(t, p)
+        if p.paid == 300 then all_in = true end
+    end
+    assert(all_in, "a near-certain hand can risk everything")
+end
+-- a Sabacc Shift names the zero hands it took
+do
+    local real = math.random
+    math.random = function(a, b) -- the spike dice always roll doubles
+        if a == 6 and not b then return 3 end
+        if b then return real(a, b) elseif a then return real(a) end
+        return real()
+    end
+    local t = Sabacc.newTable()
+    local said = false
+    for _ = 1, 30 do
+        if t.phase == "trade" then
+            t.players[1].hand = { { v = 5, s = 1 }, { v = -5, s = 2 } }
+            Sabacc.trade(t, "stand")
+        elseif t.phase == "bet" then
+            if not Sabacc.bet(t, Sabacc.owe(t) > 0 and "call" or "check") then Sabacc.bet(t, "junk") end
+        end
+        if (t.msg or ""):find("It took your Sabacc") then said = true break end
+        if t.phase == "done" or t.phase == "broke" then break end
+    end
+    math.random = real
+    assert(said, "the shift message names your lost Sabacc")
+end
+
 -- play many hands with random legal moves; credits and cards are conserved
 local function total(t)
     local s = t.pot + t.sabacc_pot
@@ -272,6 +320,17 @@ assert(chart.name == "sabacc_hands")
 chart[1]:paintTo(fakebb, 0, 0)
 chart[1]:onTap(nil, { pos = { x = 10, y = 10 } })
 assert(top() == app, "tap closes the chart")
+
+-- The regulars: profiles of all ten, two pages, the ones at your table tagged
+for _, item in ipairs(app:menuItems()) do if item.text == "The regulars" then item.callback() end end
+local regs = top()
+assert(regs.name == "sabacc_regulars" and regs.page == 1)
+regs[1]:paintTo(fakebb, 0, 0)
+for _, r in ipairs(Sabacc.ROSTER) do assert(r.story and r.style and #r.story > 20, r.name) end
+regs:turn(1); assert(regs.page == 2); regs[1]:paintTo(fakebb, 0, 0)
+regs:turn(1); assert(regs.page == 2, "no page 3")
+regs:onClose()
+assert(top() == app)
 
 -- How to play opens a scrollable viewer with the full rules
 app:showHelp()

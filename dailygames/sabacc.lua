@@ -52,16 +52,36 @@ Sabacc.JUNK_PENALTY, Sabacc.RAISES, Sabacc.ROUNDS, Sabacc.START = JUNK_PENALTY, 
 -- who runs out of credits leaves and a newcomer takes the seat.
 -- bold: how readily a player raises (cautious 0.25 .. reckless 0.8)
 local ROSTER = {
-    { name = "Tal Merrow", title = "Smuggler", bold = 0.65 },
-    { name = "K-7 Unit", title = "Droid", bold = 0.35 },
-    { name = "Old Jessa", title = "Cantina owner", bold = 0.5 },
-    { name = "Varro Quill", title = "Bounty hunter", bold = 0.8 },
-    { name = "Nessa Dray", title = "Freighter pilot", bold = 0.55 },
-    { name = "Brakk", title = "Mercenary", bold = 0.75 },
-    { name = "Ilsa Venn", title = "Card shark", bold = 0.6 },
-    { name = "B3-L Unit", title = "Croupier droid", bold = 0.3 },
-    { name = "Doran Pike", title = "Moisture farmer", bold = 0.25 },
-    { name = "Mira Sol", title = "Senator's aide", bold = 0.45 },
+    { name = "Tal Merrow", title = "Smuggler", bold = 0.65,
+        story = "Swears every cargo he flies is legitimate. Learned sabacc in a freighter hold, where the loser scrubbed the engines.",
+        style = "Bold: bets strong hands hard and bluffs now and then." },
+    { name = "K-7 Unit", title = "Protocol droid", bold = 0.35,
+        story = "Its owner lost it in a card game. It has been trying to win itself back ever since, one cautious hand at a time.",
+        style = "Cautious: plays the odds to the decimal and rarely bluffs." },
+    { name = "Old Jessa", title = "Cantina owner", bold = 0.5,
+        story = "Runs the cantina where this table sits. She has seen every trick in the galaxy and still charges for the drinks.",
+        style = "Steady: plays her cards straight and calls fair bets." },
+    { name = "Varro Quill", title = "Bounty hunter", bold = 0.8,
+        story = "Between contracts and bored. He plays the way he hunts: patient, until suddenly he isn't.",
+        style = "Reckless: raises big and often; easy to provoke, hard to read." },
+    { name = "Nessa Dray", title = "Freighter pilot", bold = 0.55,
+        story = "Saving for a ship of her own. Every pot she wins is another part for the hyperdrive.",
+        style = "Balanced: takes calculated risks when the pot is worth it." },
+    { name = "Brakk", title = "Mercenary", bold = 0.75,
+        story = "More scars than credits, and proud of both. Treats every hand like a firefight.",
+        style = "Aggressive: pushes chips forward and dares you to follow." },
+    { name = "Ilsa Venn", title = "Card shark", bold = 0.6,
+        story = "Works the high-stakes tables from system to system. Her smile is the same with Pure Sabacc or nothing at all.",
+        style = "Tricky: the likeliest to bluff when the table goes quiet." },
+    { name = "B3-L Unit", title = "Croupier droid", bold = 0.3,
+        story = "Dealt cards at a casino for forty years. Still adjusting to the idea that it is no longer the house.",
+        style = "Careful: folds weak hands fast and bets only on strength." },
+    { name = "Doran Pike", title = "Moisture farmer", bold = 0.25,
+        story = "In town for supplies, with a little left over. Every credit he bets is one the farm will miss.",
+        style = "Very cautious: hardly ever raises. When he does, believe him." },
+    { name = "Mira Sol", title = "Senator's aide", bold = 0.45,
+        story = "Says she plays to relax. Keeps very detailed notes on everyone at the table, just in case.",
+        style = "Watchful: calls when she smells a bluff, bets when she's sure." },
 }
 Sabacc.ROSTER = ROSTER
 
@@ -556,7 +576,11 @@ local function aiBet(g, p)
     local keen = 0.5 ^ g.raises -- each raise this phase halves the urge to raise again
     local function size(frac)
         local amt = math.max(10, math.floor(pot * frac / 10 + 0.5) * 10)
-        return math.min(amt, math.floor((p.credits - owe) / 10) * 10)
+        -- mind the stake: only a near-certain hand risks most of its credits
+        -- (even a perfect hand can be lost to a Sabacc Shift)
+        local share = e >= 0.85 and 1 or (0.15 + 0.45 * e)
+        local cap = math.max(10, math.floor(p.credits * share / 10) * 10)
+        return math.min(amt, cap, math.floor((p.credits - owe) / 10) * 10)
     end
     local text
     if owe == 0 then
@@ -651,6 +675,12 @@ local function spike(g)
     local text = string.format("Spike dice: %d and %d.", a, b)
     if a == b then
         text = text .. " Doubles: a Sabacc Shift deals everyone a new hand."
+        for _, p in ipairs(active(g)) do
+            local e = Sabacc.evaluate(p.hand)
+            if e.zero then -- say what the shift took
+                text = text .. (p.ai and (" It took " .. p.name .. "'s ") or " It took your ") .. e.name .. "."
+            end
+        end
         for _, p in ipairs(active(g)) do
             local n = #p.hand
             for _, c in ipairs(p.hand) do g.discard[#g.discard + 1] = c end
@@ -761,6 +791,8 @@ function Sabacc.bet(g, kind, amount)
     advance(g)
     return true
 end
+
+Sabacc._aiBet = function(g, p) return aiBet(g, p) end -- for tests
 
 function Sabacc.isWinner(g, seat)
     for _, i in ipairs(g.winners or {}) do
@@ -1504,9 +1536,127 @@ function ChartApp:rebuild()
     self[1] = Chart:new { width = self.dimen.w, height = self.dimen.h, app = self }
 end
 
+-- the regulars -------------------------------------------------------------------------
+
+local PER_PAGE = 5
+local Regulars = UI.Board:extend {}
+
+function Regulars:setup()
+    local W, H = self.width, self.height
+    local u = W / 100
+    self.u, self.pad = u, math.floor(2 * u)
+    self.page = self.page or 1
+    self.head_h = math.floor(H * 0.075)
+    self.foot_h = math.floor(H * 0.07)
+    self.row_h = math.floor((H - self.head_h - self.foot_h - 2 * self.pad) / PER_PAGE)
+    local mono = { font = MONO, bold = true }
+    self.face_title = UI.fitFace({ "T H E   R E G U L A R S" }, W * 0.7, self.head_h * 0.4, mono)
+    self.face_name = UI.fitFace({ "VARRO QUILL" }, W * 0.4, self.row_h * 0.15, mono)
+    self.face_title2 = UI.fitFace({ "FREIGHTER PILOT" }, W * 0.3, self.row_h * 0.11, { font = MONO })
+    self.face_tag = UI.fitFace({ "AT YOUR TABLE" }, W * 0.2, self.row_h * 0.09, mono)
+    self.face_page = UI.fitFace({ "‹ PREV", "NEXT ›", "1 / 2" }, W * 0.25, self.foot_h * 0.36, mono)
+end
+
+function Regulars:draw(bb, x, y)
+    local W, u, pad = self.width, self.u, self.pad
+    local hh = self.head_h
+    self.hits = {}
+    -- header band with a close cross
+    fillPoly(bb, { { x, y }, { x + W, y }, { x + W, y + hh * 0.8 }, { x + W * 0.7, y + hh * 0.8 }, { x + W * 0.67, y + hh },
+        { x + W * 0.33, y + hh }, { x + W * 0.3, y + hh * 0.8 }, { x, y + hh * 0.8 } }, UI.BLACK)
+    UI.drawText(bb, self.face_title, "T H E   R E G U L A R S", x, y, W, math.floor(hh * 0.8), UI.WHITE, true)
+    local cx, cy, d, t = x + W - math.floor(5.5 * u), y + math.floor(hh * 0.4), math.floor(2.2 * u), math.max(2, math.floor(u * 0.5)) + 1
+    UI.drawLine(bb, cx - d, cy - d, cx + d, cy + d, t, UI.WHITE)
+    UI.drawLine(bb, cx - d, cy + d, cx + d, cy - d, t, UI.WHITE)
+    self.hits[#self.hits + 1] = { x = W - math.floor(14 * u), y = 0, w = math.floor(14 * u), h = hh, act = "close" }
+    -- who's at your table now
+    local seated = {}
+    for _, p in ipairs(self.game and self.game.players or {}) do seated[p.name] = true end
+    -- five profiles per page
+    local first = (self.page - 1) * PER_PAGE + 1
+    local ry = y + hh + pad
+    for i = first, math.min(#ROSTER, first + PER_PAGE - 1) do
+        local r = ROSTER[i]
+        local rh = self.row_h - pad
+        panel(bb, x + pad, ry, W - 2 * pad, rh, math.floor(3 * u), math.max(2, math.floor(u * 0.3)), UI.BLACK, UI.WHITE)
+        local sh = math.floor(rh * 0.24)
+        fillPoly(bb, cutPts(x + pad, ry, W - 2 * pad, sh, math.floor(3 * u)), UI.BLACK)
+        local tx = x + pad + math.floor(4 * u)
+        UI.drawTextLeft(bb, self.face_name, r.name:upper(), tx, ry, sh, UI.WHITE, true)
+        local nw = UI.measure(self.face_name, r.name:upper())
+        UI.drawTextLeft(bb, self.face_title2, r.title:upper(), tx + nw + math.floor(2.5 * u), ry, sh, UI.LIGHT)
+        if seated[r.name] then
+            local tag = "AT YOUR TABLE"
+            local tw = UI.measure(self.face_tag, tag) + math.floor(2 * u)
+            local th = math.floor(sh * 0.6)
+            local tgx = x + W - pad - math.floor(2 * u) - tw
+            fillPoly(bb, cutPts(tgx, ry + math.floor((sh - th) / 2), tw, th, math.floor(th * 0.3)), UI.WHITE)
+            UI.drawText(bb, self.face_tag, tag, tgx, ry + math.floor((sh - th) / 2), tw, th, UI.BLACK, true)
+        end
+        -- boldness meter: five slanted slots
+        local my = ry + sh + math.floor(rh * 0.06)
+        local mh = math.floor(rh * 0.1)
+        UI.drawTextLeft(bb, self.face_tag, "BOLDNESS", tx, my, mh, UI.DARK, true)
+        local filled = math.max(1, math.min(5, math.floor(r.bold / 0.8 * 5 + 0.5)))
+        local sx = tx + UI.measure(self.face_tag, "BOLDNESS") + math.floor(2 * u)
+        local sw = math.floor(3.2 * u)
+        for k = 1, 5 do
+            local px = sx + (k - 1) * (sw + math.floor(u))
+            local pts = { { px + mh * 0.5, my }, { px + sw, my }, { px + sw - mh * 0.5, my + mh }, { px, my + mh } }
+            fillPoly(bb, pts, k <= filled and UI.BLACK or UI.LIGHT)
+        end
+        -- backstory and play style
+        local tw = W - 2 * pad - math.floor(12 * u) -- clear of the cut corner
+        local sy = my + mh + math.floor(rh * 0.06)
+        local bh = math.floor(rh * 0.3)
+        local f, lines = UI.fitLines(r.story, tw, bh, 2)
+        local lh = math.floor(bh / 2)
+        for li, l in ipairs(lines) do UI.drawTextLeft(bb, f, l, tx, sy + (li - 1) * lh, lh, UI.BLACK) end
+        local f2, lines2 = UI.fitLines(r.style, tw, math.floor(rh * 0.14), 1, { font = MONO })
+        UI.drawTextLeft(bb, f2, lines2[1], tx, sy + bh + math.floor(rh * 0.04), math.floor(rh * 0.14), UI.DARK, true)
+        ry = ry + self.row_h
+    end
+    -- footer: page turning
+    local pages = math.ceil(#ROSTER / PER_PAGE)
+    local fy = y + self.height - self.foot_h
+    bb:paintRect(x + pad, fy, W - 2 * pad, 1, UI.LIGHT)
+    UI.drawText(bb, self.face_page, self.page .. " / " .. pages, x, fy, W, self.foot_h, UI.DARK)
+    if self.page > 1 then
+        UI.drawTextLeft(bb, self.face_page, "‹ PREV", x + pad, fy, self.foot_h, UI.BLACK, true)
+        self.hits[#self.hits + 1] = { x = 0, y = fy - y, w = math.floor(W / 3), h = self.foot_h, act = "prev" }
+    end
+    if self.page < pages then
+        local nw = UI.measure(self.face_page, "NEXT ›")
+        UI.drawTextLeft(bb, self.face_page, "NEXT ›", x + W - pad - nw, fy, self.foot_h, UI.BLACK, true)
+        self.hits[#self.hits + 1] = { x = W - math.floor(W / 3), y = fy - y, w = math.floor(W / 3), h = self.foot_h, act = "next" }
+    end
+end
+
+function Regulars:tapAt(lx, ly)
+    for _, h in ipairs(self.hits or {}) do
+        if lx >= h.x and lx < h.x + h.w and ly >= h.y and ly < h.y + h.h then
+            if h.act == "close" then return self.app:onClose() end
+            self.app:turn(h.act == "next" and 1 or -1)
+            return
+        end
+    end
+end
+
+local RegularsApp = UI.FullscreenApp:extend { name = "sabacc_regulars", title = "The regulars" }
+
+function RegularsApp:rebuild()
+    if self[1] then self[1]:free() end
+    self[1] = Regulars:new { width = self.dimen.w, height = self.dimen.h, app = self, page = self.page, game = self.game }
+end
+
+function RegularsApp:turn(delta)
+    self.page = math.max(1, math.min(math.ceil(#ROSTER / PER_PAGE), (self.page or 1) + delta))
+    self:refresh()
+end
+
 -- app ---------------------------------------------------------------------------------
 
-local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players picked at random from ten regulars (smugglers, droids, a bounty hunter and more). When one runs out of credits they leave and someone new sits down. They bet like poker players: each one estimates its chance of winning and weighs it against the price of calling, bets big with strong hands, bluffs now and then, and reads how often you raise. Bolder regulars raise and bluff more. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
+local HELP = [[Corellian Spike, played by the Outer Rim Sabacc League (ORSL) rules, against three computer players picked at random from ten regulars (smugglers, droids, a bounty hunter and more). When one runs out of credits they leave and someone new sits down. They bet like poker players: each one estimates its chance of winning and weighs it against the price of calling, bets big with strong hands, bluffs now and then, and reads how often you raise. Bolder regulars raise and bluff more. ☰ > The regulars has everyone's story and play style. It works offline; play as many hands as you like. Credits and the Sabacc Pot carry over between hands.
 
 GOAL
 Have the best hand at the end of 3 rounds, as close to zero as possible. ☰ > Winning hands shows every hand in order of strength, with examples.
@@ -1710,6 +1860,7 @@ end
 function App:menuItems()
     return {
         { text = "Winning hands", callback = function() UIManager:show(ChartApp:new {}) end },
+        { text = "The regulars", callback = function() UIManager:show(RegularsApp:new { game = self.game, page = 1 }) end },
         { text = "How to play", callback = function() self:showHelp() end },
         { text = "New table (reset credits)", callback = function() self:newTable() end },
     }
