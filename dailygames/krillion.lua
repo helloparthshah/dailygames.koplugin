@@ -530,10 +530,14 @@ local function commas(n)
     end
 end
 
-local function percent(n, total)
-    local p = n / math.max(total, 1) * 100
-    return p >= 1 and string.format("%d%%", math.floor(p + 0.5)) or "<1%"
+--- 749270 -> "749k", 1622708 -> "1.6M", 950 -> "950"
+local function short(n)
+    if n >= 1e6 then return (string.format("%.1fM", n / 1e6):gsub("%.0M", "M")) end
+    if n >= 1e4 then return string.format("%dk", math.floor(n / 1e3 + 0.5)) end
+    if n >= 1e3 then return (string.format("%.1fk", n / 1e3):gsub("%.0k", "k")) end
+    return tostring(math.floor(n))
 end
+Krillion.shortCount = short
 
 function Krillion.showSummary(date, entry, resets_at, already)
     local lines = {}
@@ -567,7 +571,7 @@ function Krillion.showSummary(date, entry, resets_at, already)
                     others == 1 and "diver" or "divers"))
             end
             local top = {}
-            for _, t in ipairs(st.top) do top[#top + 1] = t[1] .. " " .. percent(t[2], st.total) end
+            for _, t in ipairs(st.top) do top[#top + 1] = t[1] .. " " .. short(t[2]) end
             if #top > 0 then table.insert(lines, "   Top: " .. table.concat(top, " · ")) end
         end
     end

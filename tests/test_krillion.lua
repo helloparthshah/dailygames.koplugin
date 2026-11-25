@@ -57,7 +57,8 @@ end
 for i = #SHOWN, 1, -1 do SHOWN[i] = nil end
 plug:onDailyGamesKrillion(); local st = top().text
 assert(st:find("4 other divers chose this", 1, true), st)
-assert(st:find("Top: Rugby 70% · Volleyball 20% · Kickball 10% · x1 <1%", 1, true), st)
+assert(st:find("Top: Rugby 700 · Volleyball 200 · Kickball 95 · x1 5", 1, true), st)
+assert(Kr.shortCount(749270) == "749k" and Kr.shortCount(1622708) == "1.6M" and Kr.shortCount(2000000) == "2M" and Kr.shortCount(1500) == "1.5k" and Kr.shortCount(950) == "950")
 assert(st:find("0 other divers chose this", 1, true), "only you gave x2")
 plug:onDailyGamesKrillion(); assert(pops == 1, "popularity is cached")
 print("KRILLION PASSED")
